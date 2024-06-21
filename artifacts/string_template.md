@@ -1,0 +1,100 @@
+# StringTemplate
+
+StringTemplate is a simple and powerful template engine for
+Python. It uses a simple syntax to replace placeholders 
+with values that are provided in a dictionary.  
+
+A StringTemplate file is a text file that contains multiple
+templates.  A template starts with a line that starts with
+"!!t" followed by the name of the template.  For Example:
+
+`!!t my_template`
+
+The template ends with a line that starts with "!!t" followed
+by the name of the next template or the end of the file.  For
+example:
+
+`!!t my_next_template`
+
+The placeholders in the template are surrounded by double
+!!.  For example:
+    
+    `!!variable_name_from_dict!!`
+
+The placeholders are replaced with the value from the dict. 
+For example:
+
+    `!!variable_name_from_dict!!` -> `value_from_dict`
+
+The template engine is case-sensitive.  The placeholders must
+match the keys in the dictionary exactly.  If a placeholder
+is not found in the dictionary, it is replaced with an empty
+string.  For example:
+
+    `!!variable_name_not_in_dict!!` -> ``
+
+
+## Calling Templates
+Templates can be called from other templates For example:
+
+    `!!template_name()!!`
+
+This will call the template named "template_name" and replace
+the template_name with the result of the template. 
+
+
+## Comments
+
+StringTemplate supports comments.  A comment starts with a
+"!!#" and ends with a !!#.  For example:
+
+    `!!# This is a comment!!#`
+
+That is it for comments.  The next section will cover how to
+use the template engine.
+
+## Legal characters for placeholders and template names
+
+The legal characters for placeholders and template names are a-z, A-Z, 0-9, _ and -.
+
+## Using StringTemplate
+
+To use the StringTemplate engine, you need to create a
+StringTemplate object and call the render method with a dictionary
+that contains the values for the placeholders.  For example:
+
+    `from string_template import StringTemplate`
+
+    `template = StringTemplate("string_template.st")`
+
+    `output = template.render({"variable_name_from_dict":"value_from_dict"})`
+
+    `print(output)`
+
+The first template in the input file is the starting template for render.  That is it for using the StringTemplate engine.
+
+
+## Structure of the code you generate
+
+The code you generate should have the following structure:
+
+    `class StringTemplate:`
+        def `__init__(self, input_text):`
+            ## Your code goes here
+
+    `execute_python(input_dict):`
+    `    template = StringTemplate(input_dict.test_input)`
+    `    template.render({"value":"hello world"})`
+
+If you are asked to generate python code, your response should replace  `## Your code goes here`.
+
+##Test_input.st
+!!t start
+Some text and then a value substitution !!value!!.  Then call a template !!call_template()!!.
+
+!!t call_template
+template called
+
+# Test output
+Some text and then a value substitution hello world.  Then call a template template called.
+

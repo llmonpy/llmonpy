@@ -1,0 +1,31 @@
+
+
+
+adding steps
+self.execute(
+
+can include StepBattles so it is easy to switch between
+
+input & output are defined by dictionaries with type annotations
+
+step calls have dictionaries where they map output from prior steps to their input
+
+mistral
+reponse.usage.completion_tokens == output tokens
+response.usage.prompt_tokens
+
+openai
+reponse.usage.completion_tokens == output tokens
+response.usage.prompt_tokens
+
+antrohpic
+response.usage.input_tokens
+response.usage.output_tokens
+
+gemini
+response.usage_metadata.prompt_token_count: 67
+candidates_token_count: 14
+total_token_count: 81
+
+
+pypeline

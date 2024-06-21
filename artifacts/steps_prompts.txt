@@ -1,0 +1,70 @@
+generate steps:
+{{ input.system_prompt }}
+
+I would like you to break down this project into a list of steps.  Here is the project description:
+
+{{ input.software_description }}
+
+The list of steps that you generate should assume that you start with this code:
+
+{{ input.starting_point }}
+
+After you have written the code for each step, the code will be tested with this input:
+
+{{ input.test_case }}
+
+Please make a step-by-step plan to take this project description to code I can run on my computer.  Each step should describe code you will write in that step that will get you closer to the final code.   Do not include any steps that do not involved writing code.  Assume that the environment that will run the code is setup and is working.  The steps should be as small as you can make them, but "complete" in the sense that they do compile and run.  Don't use regular expressions in this project.
+
+Present these steps in JSON format, however, do not escape double quotes, unicode, and special characters.  A post processor will take care of escaping as needed.  For each step, provide a description of the code that you will write for that step. Here is an example of the result of this step:
+
+{ "steps": [{
+  "description-of-code": "Open and read the input file",
+},
+{
+  "description-of-code": "Parse the input file and break it into separate templates"
+}]}
+
+{% if last_winner  %}
+Use these steps as a starting point and try to improve on them. Each step should describe code you will write in that step that will get you closer to the final code.  The steps should be as small as you can make them, but "complete" in the sense that they do compile and run.  Don't use regular expressions in this project.
+  { "steps": {{ last_winner.steps | tojson }} }
+{% endif %}
+
+
+
+
+
+
+
+judge:
+# You are the judge
+
+Two people have been asked to break down a software development project into smaller tasks. The project description is:
+
+## Project Description
+{{ input.software_description }}
+
+
+## Evaluation of step list
+You should consider the following when evaluating each step:
+1. The project only covers writing the code.  No step should involve product or project management, marketing, or any other non-coding task.
+2. Each step should build on prior steps and not require steps that come later in the list.
+3. Each step should describe code that will be written in that step that will get you closer to the final code. 
+4. The steps should be as small as you can make them, but "complete" in the sense that they do compile and run.
+
+## Contestant 1
+The steps from contestant 1 are:
+{{ input.home_steps }}
+
+## Contestant 2
+The steps from contestant 2 are:
+{{ input.away_steps }}
+
+## Pick the winner
+If contestant 1 is the winner, reply with this JSON:
+{ "winner": 1 }
+
+If contestant 2 is the winner, reply with this JSON:
+{ "winner": 2 }
+
+DO NOT include any other text in your reply.  Only reply with the JSON above.
+

@@ -1,0 +1,8 @@
+#!/bin/bash
+pip install --upgrade google-generativeai
+pip install --upgrade openai
+pip install --upgrade mistralai
+pip install --upgrade anthropic
+pip install --upgrade nothingpy
+pip install --upgrade jinja2
+pip install --upgrade sqlalchemy
