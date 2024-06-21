@@ -15,6 +15,7 @@
 import concurrent
 import copy
 import json
+import uuid
 
 from llmon_pypeline import LLMonPypeline
 from llmonpy_execute import do_llmonpy_parallel_step, do_llmonpy_step
@@ -24,6 +25,7 @@ from llmonpy_step import LLMonPyStep, LLMonPyStepOutput
 
 class JudgedOutput(LLMonPyStepOutput):
     def __init__(self, step_output):
+        self.output_id = str(uuid.uuid4())
         self.step_output = step_output
         self.victory_count = 0
 
@@ -37,6 +39,7 @@ def judge_output(contestant_list, judge_list, thread_pool, recorder):
     start_index = 0
     contest_list = []
     number_of_contestants = len(contestant_list)
+    tourney_result = recorder.create_tourney_result(len(judge_list))
     while start_index < (number_of_contestants - 1):
         for i in range(start_index + 1, number_of_contestants):
             contest_list.append(JudgedContest(contestant_list[start_index], contestant_list[i]))
@@ -49,11 +52,14 @@ def judge_output(contestant_list, judge_list, thread_pool, recorder):
     for future in concurrent.futures.as_completed(future_list):
         try:
             result = future.result()
+            tourney_result.add_contest_result(result.output_1.output_id, result.output_2.output_id,
+                                              result.winner.output_id, result.dissent_count)
             result.winner.victory_count += 1
         except Exception as e:
             print(str(e))
             pass
     ordered_contestant_list = sorted(contestant_list, key=lambda x: x.victory_count, reverse=True)
+    recorder.record_tourney_result(ordered_contestant_list, tourney_result)
     return ordered_contestant_list
 
 
@@ -84,6 +90,7 @@ class JudgedContest:
         self.output_1 = output_1
         self.output_2 = output_2
         self.winner = None
+        self.dissent_count = 0
 
     def determine_winner(self, recorder, judge_list:[TournamentJudgePrompt]):
         future_list = []
@@ -105,9 +112,11 @@ class JudgedContest:
                 pass
         if contestant_1_victory_count > contestant_2_victory_count:
             self.winner = self.output_1
+            self.dissent_count = contestant_2_victory_count
             print("winner 1")
         else:
             self.winner = self.output_2
+            self.dissent_count = contestant_1_victory_count
             print("winner 2")
         return self
 

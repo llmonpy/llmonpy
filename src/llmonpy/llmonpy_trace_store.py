@@ -25,6 +25,7 @@ VARIATION_OF_TRACE_ID_COLUMN_NAME = "variation_of_trace_id"
 TITLE_COLUMN_NAME = "title"
 EVENT_ID_COLUMN_NAME = "event_id"
 STEP_ID_COLUMN_NAME = "step_id"
+STEP_NAME_COLUMN_NAME = "step_name"
 
 
 class LLMonPyConnectionPool:
@@ -183,16 +184,18 @@ class JSONTable:
 
 
 class SqliteLLMonPyTraceStore:
-    def __init__(self, data_directory, trace_factory, step_record_factory, event_factory):
+    def __init__(self, data_directory, trace_factory, step_record_factory, event_factory, tourney_result_factory):
         self.data_directory = data_directory
         db_path = os.path.join(self.data_directory + '/trace_store.db')
         self.connection_pool = LLMonPyConnectionPool(db_path)
         self.trace_factory = trace_factory
         self.step_record_factory = step_record_factory
         self.event_factory = event_factory
+        self.tourney_result_factory = tourney_result_factory
         self.trace_list_table = None
         self.step_record_table = None
         self.event_table = None
+        self.tourney_result_table = None
         self.create_tables()
 
     def stop(self):
@@ -218,6 +221,13 @@ class SqliteLLMonPyTraceStore:
         self.event_table = JSONTable(self.connection_pool, "event", event_table_column_list,
                                      self.event_factory)
         self.event_table.create_table()
+        tourney_result_table_column_list = [JSONTableColumn(STEP_ID_COLUMN_NAME, True, True),
+                                            JSONTableColumn(TRACE_ID_COLUMN_NAME, True, False),
+                                            JSONTableColumn(STEP_NAME_COLUMN_NAME, True, False)]
+        self.tourney_result_table = JSONTable(self.connection_pool, "tourney_result",
+                                              tourney_result_table_column_list,
+                                              self.tourney_result_factory)
+        self.tourney_result_table.create_table()
 
     def insert_trace(self, trace):
         self.trace_list_table.insert_rows([trace])
@@ -232,6 +242,9 @@ class SqliteLLMonPyTraceStore:
 
     def insert_events(self, event_list):
         self.event_table.insert_rows(event_list)
+
+    def insert_tourney_results(self, tourney_result_list):
+        self.tourney_result_table.insert_rows(tourney_result_list)
 
     def get_events_for_step(self, step_id):
         step_id_condition = QueryCondition(STEP_ID_COLUMN_NAME, "=", step_id)

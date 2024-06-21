@@ -25,6 +25,7 @@ from trace_log import LlmClientInfo
 DEFAULT_OUTPUT_DICT_KEY = "response_string"
 TEMP_SETTING_KEY = "temp"
 
+
 class LLMonPyPrompt:
 
     test_prompt_text: str
