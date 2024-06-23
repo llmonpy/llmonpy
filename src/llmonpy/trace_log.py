@@ -21,7 +21,7 @@ import threading
 import uuid
 
 from config import llmonpy_config
-from llmonpy_step import LLMonPyStepOutput
+from llmonpy_step import LLMonPyStepOutput, LLMONPY_OUTPUT_FORMAT_JSON
 from llmonpy_trace_store import SqliteLLMonPyTraceStore
 from system_services import system_services
 
@@ -250,8 +250,8 @@ class TourneyResult:
 class StepTraceData:
     def __init__(self, trace_id, trace_group_id, variation_of_trace_id, step_id, step_index,
                  step_name, root_step_id, root_step_name, parent_step_id, parent_step_name, llm_client_info, input_dict,
-                 start_time=None, end_time=None, output_dict=None, status_code=STEP_STATUS_NO_STATUS, error_list=None,
-                 cost=0.0):
+                 start_time=None, end_time=None, output_dict=None, output_format=LLMONPY_OUTPUT_FORMAT_JSON,
+                 status_code=STEP_STATUS_NO_STATUS, error_list=None, cost=0.0):
         self.trace_id = trace_id
         self.trace_group_id = trace_group_id
         self.variation_of_trace_id = variation_of_trace_id
@@ -267,6 +267,7 @@ class StepTraceData:
         self.start_time = start_time
         self.end_time = end_time
         self.output_dict = output_dict
+        self.output_format = output_format
         self.status_code = status_code
         self.error_list = error_list
         self.cost = cost
@@ -308,10 +309,12 @@ class StepTraceData:
 
 class TraceLogRecorder:
     def __init__(self, trace_log_service, root_recorder, parent_recorder, trace_id, trace_group_id,
-                 variation_of_trace_id, step_id, step_index, step_name, root_step_id, root_step_name, parent_step_id,
+                 variation_of_trace_id, step_id, step_index, step, root_step_id, root_step_name, parent_step_id,
                  parent_step_name, client_info, input_dict=None, start_time=None):
         self.trace_log_service = trace_log_service
-        self.trace_data = StepTraceData(trace_id, trace_group_id, variation_of_trace_id, step_id, step_index, step_name,
+        self.step = step
+        self.trace_data = StepTraceData(trace_id, trace_group_id, variation_of_trace_id, step_id, step_index,
+                                        step.get_step_name(),
                                         root_step_id, root_step_name, parent_step_id, parent_step_name, client_info,
                                         input_dict, start_time)
         self.root_recorder = root_recorder
@@ -359,7 +362,7 @@ class TraceLogRecorder:
         root_recorder = self.root_recorder if self.root_recorder is not None else self
         result = TraceLogRecorder(self.trace_log_service, root_recorder, self, self.trace_data.trace_id,
                                   self.trace_data.trace_group_id, self.trace_data.variation_of_trace_id, step_id,
-                                  step_index, step.get_step_name(), self.trace_data.root_step_id,
+                                  step_index, step, self.trace_data.root_step_id,
                                   self.trace_data.root_step_name, self.trace_data.step_id, self.trace_data.step_name,
                                   client_info, input_dict, start_time)
         print("created child recorder " + str(step_index))
@@ -386,7 +389,8 @@ class TraceLogRecorder:
         tourney_result.contestant_list = contestant_list
         self.trace_log_service.record_trourney_result(tourney_result)
            
-    def finish_child_step(self, output_dict, status_code=STEP_STATUS_SUCCESS, cost=None):
+    def finish_child_step(self, output_dict, status_code=STEP_STATUS_SUCCESS,
+                          cost=None):
         if cost is not None:
             self.add_to_cost(cost)
         end_time = datetime.now()
@@ -398,6 +402,7 @@ class TraceLogRecorder:
         else:
             output_dict = output_dict.to_dict() if output_dict is not None else None
             self.trace_data.output_dict = output_dict
+        self.trace_data.output_format = self.step.get_output_format()
         self.trace_data.status_code = status_code
         self.trace_log_service.record_step(self.trace_data)
 
@@ -443,11 +448,11 @@ class TraceLogService:
     def create_root_recorder(self, trace_id, trace_group_id, variation_of_trace_id, step) -> TraceLogRecorder:
         root_step_id = str(uuid.uuid4())
         start_time = datetime.now()
-        step_name = step.get_step_name()
         input_dict = step.get_input_dict()
+        step_name = step.get_step_name()
         client_info = step.get_llm_client_info()
         result = TraceLogRecorder(self, None, None, trace_id, trace_group_id,
-                                  variation_of_trace_id, root_step_id, 0, step_name, root_step_id, step_name,
+                                  variation_of_trace_id, root_step_id, 0, step, root_step_id, step_name,
                                   None, None, client_info, input_dict, start_time)
         return result
 

@@ -18,7 +18,7 @@ import json
 from jinja2 import Template
 from nothingpy import Nothing
 
-from llmonpy_step import LLMonPyStep, LLMonPyStepOutput
+from llmonpy_step import LLMonPyStep, LLMonPyStepOutput, LLMONPY_OUTPUT_FORMAT_JSON, LLMONPY_OUTPUT_FORMAT_TEXT
 from llm_client import LlmClient
 from trace_log import LlmClientInfo
 
@@ -51,6 +51,9 @@ class LLMonPyPrompt:
 
     def get_json_output(self):
         return self.__class__.json_output
+
+    def get_output_format(self):
+        result = LLMONPY_OUTPUT_FORMAT_JSON if self.get_json_output() else LLMONPY_OUTPUT_FORMAT_TEXT
 
     def get_step_name(self):
         result = self.__class__.__module__ + "." + self.__class__.__name__

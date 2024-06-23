@@ -18,6 +18,10 @@ import json
 from config import llmonpy_config
 
 
+LLMONPY_OUTPUT_FORMAT_JSON = "json"
+LLMONPY_OUTPUT_FORMAT_TEXT = "text"
+
+
 class LLMonPyStep:
     def execute_step(self, recorder):
         raise NotImplementedError()
@@ -37,6 +41,9 @@ class LLMonPyStep:
 
     def get_llm_client_info(self):
         return None
+
+    def get_output_format(self):
+        return LLMONPY_OUTPUT_FORMAT_JSON
 
 class LLMonPyStepOutput:
     def __init__(self):
