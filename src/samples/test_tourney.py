@@ -21,12 +21,12 @@ from llmon_pypeline import LLMonPypeline
 from llmonpy_execute import do_llmonpy_step
 from llmonpy_step import TraceLogRecorderInterface
 from llmonpy_tournament import LLMonPyTournament, TournamentJudgePrompt
-from prompt import create_prompt_steps, FewShotPrompt, LLMonPyPrompt
+from prompt import create_prompt_steps, LLMonPyPrompt
 from system_startup import system_startup, system_stop
 from trace_log import trace_log_service
 
 
-class NameIterativeRefinementTournamentPrompt(LLMonPyPrompt, FewShotPrompt):
+class NameIterativeRefinementTournamentPrompt(LLMonPyPrompt):
     prompt_text = """
             I need to name an exciting new technique for responding to requests that are given to LLMs to respond to.  
             It is well known LLMs give better responses when shown given examples of good responses.  I have created a 

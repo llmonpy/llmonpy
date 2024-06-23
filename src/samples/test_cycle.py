@@ -39,7 +39,8 @@ class GenerateNameCycle(LLMonPypeline):
         first_round_generators = create_prompt_steps(NameIterativeRefinementTournamentPrompt(), first_round_client_list, [0.0])
         generators = create_prompt_steps(NameIterativeRefinementTournamentPrompt(), client_list, [0.0])
         judge_list = create_prompt_steps(NameIterativeRefinementTournamentPrompt.JudgePrompt(), judge_client_list)
-        tournament = ChampionCycle(generators, judge_list, first_round_generators, 3, 3 )
+        tournament = ChampionCycle(NameIterativeRefinementTournamentPrompt().get_step_name(), generators, judge_list,
+                                   first_round_generators, 3, 3 )
         result_list, _ = tournament.execute_step(recorder)
         for result in result_list:
             print("name:" + result.name)

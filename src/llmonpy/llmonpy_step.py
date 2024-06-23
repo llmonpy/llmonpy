@@ -20,6 +20,7 @@ from config import llmonpy_config
 
 LLMONPY_OUTPUT_FORMAT_JSON = "json"
 LLMONPY_OUTPUT_FORMAT_TEXT = "text"
+EXAMPLE_LIST_KEY = "example_list"
 
 STEP_STATUS_NO_STATUS = 0
 STEP_STATUS_SUCCESS = 200
@@ -54,6 +55,15 @@ class TourneyResultInterface:
 class TraceLogRecorderInterface:
 
     def get_step_id(self):
+        raise NotImplementedError()
+
+    def get_input_dict(self):
+        raise NotImplementedError()
+
+    def set_step_examples(self, step_name: str, example_list: [LLMonPyStepOutput]):
+        raise NotImplementedError()
+
+    def get_step_examples(self, step_name: str) -> [LLMonPyStepOutput]:
         raise NotImplementedError()
 
     def log_message(self, message):
@@ -98,21 +108,25 @@ class LLMonPyStep:
     def get_thread_pool(self) -> concurrent.futures.ThreadPoolExecutor:
         return llmonpy_config().thread_pool
 
-    def set_example_list(self, example_list):
-        pass
-
     def get_step_name(self):
         result = self.__class__.__module__ + "." + self.__class__.__name__
         return result
 
-    def get_input_dict(self):
-        return {}
+    def get_input_dict(self, recorder: TraceLogRecorderInterface):
+        example_list = recorder.get_step_examples(self.get_step_name()) if recorder is not None else None
+        if example_list is not None:
+            example_list = [example.to_dict() for example in example_list]
+            result = {EXAMPLE_LIST_KEY: example_list}
+        else:
+            result = {}
+        return result
 
     def get_llm_client_info(self):
         return None
 
     def get_output_format(self):
         return LLMONPY_OUTPUT_FORMAT_JSON
+
 
 
 

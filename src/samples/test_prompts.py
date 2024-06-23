@@ -73,6 +73,8 @@ if __name__ == "__main__":
             print("Logs for step " + step.step_id + ":")
             for log in log_list:
                 print(log.to_json())
+    except Exception as e:
+        print(str(e))
     finally:
         system_stop()
         exit(0)

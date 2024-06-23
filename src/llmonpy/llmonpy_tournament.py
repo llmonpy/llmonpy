@@ -125,17 +125,12 @@ class LLMonPyTournament(LLMonPypeline):
     def __init__(self, contestant_list:[LLMonPyStep], judge_list:[LLMonPyStep], example_list=None):
         self.contestant_list = contestant_list
         self.judge_list = judge_list
-        self.example_list = example_list
-
-    def set_example_list(self, example_list):
-        self.example_list = example_list
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
         future_list = []
         output_list:[JudgedOutput] = []
         response_dict = {}
         for contestant in self.contestant_list:
-            contestant.set_example_list(self.example_list)
             future, step_recorder = do_llmonpy_parallel_step(contestant, recorder)
             future_list.append(future)
         for future in concurrent.futures.as_completed(future_list):
@@ -156,18 +151,19 @@ class LLMonPyTournament(LLMonPypeline):
         ordered_output_list = judge_output(output_list, self.judge_list, self.get_thread_pool(), recorder)
         return ordered_output_list, recorder
 
-    def output_no_score(self, ordered_output_list:[JudgedOutput], step):
+    def output_no_score(self, ordered_output_list:[JudgedOutput], recorder):
         ordered_output_list = [judged_output.step_output for judged_output in ordered_output_list]
-        return ordered_output_list, step
+        return ordered_output_list, recorder
 
-    def winner_only(self, ordered_output_list:[JudgedOutput], step):
+    def winner_only(self, ordered_output_list:[JudgedOutput], recorder):
         result = ordered_output_list[0].step_output
-        return result, step
+        return result, recorder
 
 
 class ChampionCycle(LLMonPypeline):
-    def __init__(self, contestant_list:[LLMonPyStep], judge_list:[LLMonPyStep], first_round_contestant_list=None,
-                 number_of_examples:int = 1, max_cycles:int = 4):
+    def __init__(self, generation_prompt_name, contestant_list:[LLMonPyStep], judge_list:[LLMonPyStep],
+                 first_round_contestant_list=None, number_of_examples:int = 1, max_cycles:int = 4):
+        self.generation_prompt_name = generation_prompt_name
         self.contestant_list = contestant_list
         self.first_round_contestant_list = first_round_contestant_list if first_round_contestant_list is not None else contestant_list
         self.judge_list = judge_list
@@ -181,7 +177,7 @@ class ChampionCycle(LLMonPypeline):
         self.update_example_list(first_round_result_list, recorder)
         for i in range(1, self.max_cycles):
             tournament = LLMonPyTournament(self.contestant_list, self.judge_list)
-            tournament.set_example_list(self.example_list)
+            recorder.set_step_examples(self.generation_prompt_name, self.example_list)
             result_list, _ = tournament.output_no_score(*do_llmonpy_step(tournament, recorder))
             new_champion = self.update_example_list(result_list, recorder)
             if new_champion is False:

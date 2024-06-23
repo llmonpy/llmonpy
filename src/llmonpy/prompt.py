@@ -75,11 +75,6 @@ class LLMonPyPrompt:
         return result
 
 
-class FewShotPrompt:
-    def set_example_list(self, example_list):
-        pass
-
-
 # make different evaluators if they handle errors different
 class LLMonPyPromptEvaluator(LLMonPyStep):
     def __init__(self, llm_client: LlmClient, prompt: LLMonPyPrompt, temp: float = 0.0 ):
@@ -92,25 +87,24 @@ class LLMonPyPromptEvaluator(LLMonPyStep):
         result = self.llm_client.get_thread_pool()
         return result
 
-    def set_example_list(self, example_list):
-        if isinstance(self.prompt, FewShotPrompt):
-            self.prompt.set_example_list(example_list)
-
     def get_prompt(self) -> LLMonPyPrompt:
         return self.prompt
 
     def get_step_name(self):
         return self.prompt.get_step_name()
 
-    def get_input_dict(self):
-        return self.prompt.to_dict()
+    def get_input_dict(self, recorder: TraceLogRecorderInterface):
+        super_result = super().get_input_dict(recorder)
+        result = self.prompt.to_dict()
+        result.update(super_result)
+        return result
 
     def get_llm_client_info(self):
         result = LlmClientInfo(self.llm_client.model_name, {TEMP_SETTING_KEY: self.temp})
         return result
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        prompt_dict = self.prompt.to_dict()
+        prompt_dict = recorder.get_input_dict()
         recorder.log_prompt_template(self.prompt.get_prompt_text())
         prompt_text = self.template.render(prompt_dict)
         result = None

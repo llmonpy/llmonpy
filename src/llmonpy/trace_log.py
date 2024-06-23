@@ -210,9 +210,10 @@ class ContestResult:
 
 
 class TourneyResult(TourneyResultInterface):
-    def __init__(self, step_id, trace_id, step_name, input_data, number_of_judges,
+    def __init__(self, tourney_result_id, step_id, trace_id, step_name, input_data, number_of_judges,
                  contestant_list: [LLMonPyStepOutput] = None,
                  contest_result_list: [ContestResult] = None):
+        self.tourney_result_id = tourney_result_id
         self.step_id = step_id
         self.trace_id = trace_id
         self.step_name = step_name
@@ -318,9 +319,13 @@ class TraceLogRecorder (TraceLogRecorderInterface):
         self.parent_recorder = parent_recorder
         self.recorder_lock = threading.Lock()
         self.next_step_index = step_index
+        self.step_examples = {}
 
     def get_step_id(self):
         return self.trace_data.step_id
+
+    def get_input_dict(self):
+        return self.trace_data.input_dict
 
     def get_next_step_index(self):
         if self.root_recorder is not None:
@@ -329,6 +334,15 @@ class TraceLogRecorder (TraceLogRecorderInterface):
             with self.recorder_lock:
                 self.next_step_index += 1
                 result = self.next_step_index
+        return result
+
+    def set_step_examples(self, step_name: str, example_list: [LLMonPyStepOutput]):
+        self.step_examples[step_name] = example_list
+
+    def get_step_examples(self, step_name: str) -> [LLMonPyStepOutput]:
+        result = self.step_examples.get(step_name, None)
+        if result is None and self.parent_recorder is not None:
+            result = self.parent_recorder.get_step_examples(step_name)
         return result
 
     def log_message(self, message):
@@ -354,7 +368,7 @@ class TraceLogRecorder (TraceLogRecorderInterface):
             self.trace_data.cost += cost
 
     def create_child_recorder(self, step):
-        input_dict = step.get_input_dict()
+        input_dict = step.get_input_dict(self)
         client_info = step.get_llm_client_info()
         step_id = str(uuid.uuid4())
         step_index = self.get_next_step_index()
@@ -380,8 +394,9 @@ class TraceLogRecorder (TraceLogRecorderInterface):
                 self.parent_recorder.record_cost(cost)
 
     def create_tourney_result(self, number_of_judges) -> TourneyResult:
-        result = TourneyResult(self.trace_data.step_id, self.trace_data.trace_id, self.trace_data.step_name,
-                                 self.trace_data.input_dict, number_of_judges)
+        tourney_result_id = str(uuid.uuid4())
+        result = TourneyResult(tourney_result_id, self.trace_data.step_id, self.trace_data.trace_id,
+                               self.trace_data.step_name, self.trace_data.input_dict, number_of_judges)
         return result
 
     def record_tourney_result(self, contestant_list: [LLMonPyStepOutput], tourney_result):
@@ -448,7 +463,7 @@ class TraceLogService:
     def create_root_recorder(self, trace_id, trace_group_id, variation_of_trace_id, step) -> TraceLogRecorder:
         root_step_id = str(uuid.uuid4())
         start_time = datetime.now()
-        input_dict = step.get_input_dict()
+        input_dict = step.get_input_dict(None)
         step_name = step.get_step_name()
         client_info = step.get_llm_client_info()
         result = TraceLogRecorder(self, None, None, trace_id, trace_group_id,

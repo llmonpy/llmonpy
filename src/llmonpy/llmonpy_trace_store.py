@@ -26,6 +26,7 @@ TITLE_COLUMN_NAME = "title"
 EVENT_ID_COLUMN_NAME = "event_id"
 STEP_ID_COLUMN_NAME = "step_id"
 STEP_NAME_COLUMN_NAME = "step_name"
+TOURNEY_RESULT_ID_COLUMN_NAME = "tourney_result_id"
 
 
 class LLMonPyConnectionPool:
@@ -221,7 +222,8 @@ class SqliteLLMonPyTraceStore:
         self.event_table = JSONTable(self.connection_pool, "event", event_table_column_list,
                                      self.event_factory)
         self.event_table.create_table()
-        tourney_result_table_column_list = [JSONTableColumn(STEP_ID_COLUMN_NAME, True, True),
+        tourney_result_table_column_list = [JSONTableColumn(TOURNEY_RESULT_ID_COLUMN_NAME, True, True),
+                                            JSONTableColumn(STEP_ID_COLUMN_NAME, True, False),
                                             JSONTableColumn(TRACE_ID_COLUMN_NAME, True, False),
                                             JSONTableColumn(STEP_NAME_COLUMN_NAME, True, False)]
         self.tourney_result_table = JSONTable(self.connection_pool, "tourney_result",
