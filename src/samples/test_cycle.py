@@ -19,6 +19,7 @@ import time
 from llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU, \
     MISTRAL_8X22B, ANTHROPIC_OPUS, ALL_CLIENT_LIST
 from llmon_pypeline import LLMonPypeline
+from llmonpy_step import TraceLogRecorderInterface
 from llmonpy_tournament import ChampionCycle
 from prompt import create_prompt_steps
 from system_startup import system_startup, system_stop
@@ -30,7 +31,7 @@ class GenerateNameCycle(LLMonPypeline):
     def __init__(self):
         pass
 
-    def execute_step(self, recorder):
+    def execute_step(self, recorder: TraceLogRecorderInterface):
         first_round_client_list = [GPT4o, MISTRAL_LARGE, GEMINI_PRO, ANTHROPIC_SONNET, ANTHROPIC_OPUS]
         client_list = [GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU]
         judge_client_list = [MISTRAL_LARGE, GEMINI_FLASH, MISTRAL_7B, MISTRAL_8X22B, ANTHROPIC_HAIKU]
@@ -42,7 +43,7 @@ class GenerateNameCycle(LLMonPypeline):
         result_list, _ = tournament.execute_step(recorder)
         for result in result_list:
             print("name:" + result.name)
-        return result_list[0], self
+        return result_list[0], recorder
 
 
 if __name__ == "__main__":

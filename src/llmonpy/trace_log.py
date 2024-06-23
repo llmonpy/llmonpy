@@ -21,13 +21,10 @@ import threading
 import uuid
 
 from config import llmonpy_config
-from llmonpy_step import LLMonPyStepOutput, LLMONPY_OUTPUT_FORMAT_JSON
+from llmonpy_step import LLMonPyStepOutput, LLMONPY_OUTPUT_FORMAT_JSON, STEP_STATUS_NO_STATUS, STEP_STATUS_SUCCESS, \
+    TraceLogRecorderInterface, TourneyResultInterface
 from llmonpy_trace_store import SqliteLLMonPyTraceStore
 from system_services import system_services
-
-STEP_STATUS_NO_STATUS = 0
-STEP_STATUS_SUCCESS = 200
-STEP_STATUS_FAILURE = 500
 
 
 class TraceInfo:
@@ -212,7 +209,7 @@ class ContestResult:
         return ContestResult(**dictionary)
 
 
-class TourneyResult:
+class TourneyResult(TourneyResultInterface):
     def __init__(self, step_id, trace_id, step_name, input_data, number_of_judges,
                  contestant_list: [LLMonPyStepOutput] = None,
                  contest_result_list: [ContestResult] = None):
@@ -307,7 +304,7 @@ class StepTraceData:
         return result
 
 
-class TraceLogRecorder:
+class TraceLogRecorder (TraceLogRecorderInterface):
     def __init__(self, trace_log_service, root_recorder, parent_recorder, trace_id, trace_group_id,
                  variation_of_trace_id, step_id, step_index, step, root_step_id, root_step_name, parent_step_id,
                  parent_step_name, client_info, input_dict=None, start_time=None):
@@ -321,6 +318,9 @@ class TraceLogRecorder:
         self.parent_recorder = parent_recorder
         self.recorder_lock = threading.Lock()
         self.next_step_index = step_index
+
+    def get_step_id(self):
+        return self.trace_data.step_id
 
     def get_next_step_index(self):
         if self.root_recorder is not None:

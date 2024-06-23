@@ -20,7 +20,7 @@ import uuid
 from llmon_pypeline import LLMonPypeline
 from llmonpy_execute import do_llmonpy_parallel_step, do_llmonpy_step
 from prompt import LLMonPyPrompt
-from llmonpy_step import LLMonPyStep, LLMonPyStepOutput
+from llmonpy_step import LLMonPyStep, LLMonPyStepOutput, TraceLogRecorderInterface
 
 
 class JudgedOutput(LLMonPyStepOutput):
@@ -98,7 +98,7 @@ class JudgedContest:
         contestant_2_victory_count = 0
         for judge in judge_list:
             judge.get_prompt().set_values(self.output_1.step_output, self.output_2.step_output)
-            future = do_llmonpy_parallel_step(judge, recorder)
+            future, step_recorder = do_llmonpy_parallel_step(judge, recorder)
             future_list.append(future)
         for future in concurrent.futures.as_completed(future_list):
             try:
@@ -130,13 +130,13 @@ class LLMonPyTournament(LLMonPypeline):
     def set_example_list(self, example_list):
         self.example_list = example_list
 
-    def execute_step(self, recorder):
+    def execute_step(self, recorder: TraceLogRecorderInterface):
         future_list = []
         output_list:[JudgedOutput] = []
         response_dict = {}
         for contestant in self.contestant_list:
             contestant.set_example_list(self.example_list)
-            future = do_llmonpy_parallel_step(contestant, recorder)
+            future, step_recorder = do_llmonpy_parallel_step(contestant, recorder)
             future_list.append(future)
         for future in concurrent.futures.as_completed(future_list):
             try:
@@ -154,7 +154,7 @@ class LLMonPyTournament(LLMonPypeline):
                 print(str(e))
                 pass
         ordered_output_list = judge_output(output_list, self.judge_list, self.get_thread_pool(), recorder)
-        return ordered_output_list, self
+        return ordered_output_list, recorder
 
     def output_no_score(self, ordered_output_list:[JudgedOutput], step):
         ordered_output_list = [judged_output.step_output for judged_output in ordered_output_list]
@@ -175,7 +175,7 @@ class ChampionCycle(LLMonPypeline):
         self.max_cycles = max_cycles
         self.example_list:[LLMonPyPrompt.LLMonPyOutput] = []
 
-    def execute_step(self, recorder):
+    def execute_step(self, recorder: TraceLogRecorderInterface):
         tournament = LLMonPyTournament(self.first_round_contestant_list, self.judge_list)
         first_round_result_list, _ = tournament.output_no_score(*do_llmonpy_step(tournament, recorder))
         self.update_example_list(first_round_result_list, recorder)
@@ -189,7 +189,7 @@ class ChampionCycle(LLMonPypeline):
                 break
             else:
                 recorder.log_message("cycle " + str(i) + " champion: " + str(self.example_list[0]))
-        return self.example_list, self
+        return self.example_list, recorder
 
     def update_example_list(self, result_list:[JudgedOutput], recorder):
         new_champion = False

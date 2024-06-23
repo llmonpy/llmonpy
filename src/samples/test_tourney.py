@@ -19,6 +19,7 @@ from llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC
     MISTRAL_8X22B, ANTHROPIC_OPUS
 from llmon_pypeline import LLMonPypeline
 from llmonpy_execute import do_llmonpy_step
+from llmonpy_step import TraceLogRecorderInterface
 from llmonpy_tournament import LLMonPyTournament, TournamentJudgePrompt
 from prompt import create_prompt_steps, FewShotPrompt, LLMonPyPrompt
 from system_startup import system_startup, system_stop
@@ -155,7 +156,7 @@ class GenerateNamePypeline(LLMonPypeline):
     def __init__(self):
         pass
 
-    def execute_step(self, recorder):
+    def execute_step(self, recorder: TraceLogRecorderInterface):
         client_list = [GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU,
                        ANTHROPIC_OPUS]
         judge_client_list = [MISTRAL_LARGE, GEMINI_FLASH, MISTRAL_7B, MISTRAL_8X22B, ANTHROPIC_HAIKU]
@@ -165,7 +166,7 @@ class GenerateNamePypeline(LLMonPypeline):
         result_list, _ = do_llmonpy_step(tournament, recorder)
         for result in result_list:
             print("name:" + result.step_output.name + " score: " + str(result.victory_count))
-        return result_list[0].step_output, self
+        return result_list[0].step_output, recorder
 
 
 if __name__ == "__main__":

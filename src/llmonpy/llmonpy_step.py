@@ -21,9 +21,78 @@ from config import llmonpy_config
 LLMONPY_OUTPUT_FORMAT_JSON = "json"
 LLMONPY_OUTPUT_FORMAT_TEXT = "text"
 
+STEP_STATUS_NO_STATUS = 0
+STEP_STATUS_SUCCESS = 200
+STEP_STATUS_FAILURE = 500
+
+
+class LLMonPyStepOutput:
+    def __init__(self):
+        pass
+
+    def __str__(self):
+        result = json.dumps(self.to_dict())
+        return result
+
+    def to_dict(self):
+        pass
+
+    def to_json(self):
+        result = json.dumps(self.to_dict())
+        return result
+
+    @staticmethod
+    def from_dict(dict):
+        pass
+
+
+class TourneyResultInterface:
+    def add_contest_result(self, contestant_1_output_id, contestant_2_output_id, winner_output_id, dissenting_judges=0):
+        raise NotImplementedError()
+
+
+class TraceLogRecorderInterface:
+
+    def get_step_id(self):
+        raise NotImplementedError()
+
+    def log_message(self, message):
+        raise NotImplementedError()
+
+    def log_exception(self, exception):
+        raise NotImplementedError()
+
+    def log_prompt_template(self, prompt_template):
+        raise NotImplementedError()
+
+    def log_prompt_response(self, prompt_text, response_text):
+        raise NotImplementedError()
+
+    def add_to_cost(self, cost):
+        raise NotImplementedError()
+
+    def create_child_recorder(self, step):
+        raise NotImplementedError()
+
+    def record_exception(self, exception):
+        raise NotImplementedError()
+
+    def record_cost(self, cost):
+        raise NotImplementedError()
+
+    def create_tourney_result(self, number_of_judges) -> TourneyResultInterface:
+        raise NotImplementedError()
+
+    def record_tourney_result(self, contestant_list: [LLMonPyStepOutput], tourney_result):
+        raise NotImplementedError()
+
+    def finish_child_step(self, output_dict, status_code=STEP_STATUS_SUCCESS,
+                          cost=None):
+        raise NotImplementedError()
+
 
 class LLMonPyStep:
-    def execute_step(self, recorder):
+    def execute_step(self, recorder: TraceLogRecorderInterface) -> (LLMonPyStepOutput, TraceLogRecorderInterface):
         raise NotImplementedError()
 
     def get_thread_pool(self) -> concurrent.futures.ThreadPoolExecutor:
@@ -45,24 +114,6 @@ class LLMonPyStep:
     def get_output_format(self):
         return LLMONPY_OUTPUT_FORMAT_JSON
 
-class LLMonPyStepOutput:
-    def __init__(self):
-        pass
-
-    def __str__(self):
-        result = json.dumps(self.to_dict())
-        return result
-
-    def to_dict(self):
-        pass
-
-    def to_json(self):
-        result = json.dumps(self.to_dict())
-        return result
-
-    @staticmethod
-    def from_dict(dict):
-        pass
 
 
 

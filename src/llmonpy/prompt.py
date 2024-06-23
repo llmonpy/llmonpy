@@ -18,7 +18,7 @@ import json
 from jinja2 import Template
 from nothingpy import Nothing
 
-from llmonpy_step import LLMonPyStep, LLMonPyStepOutput, LLMONPY_OUTPUT_FORMAT_JSON, LLMONPY_OUTPUT_FORMAT_TEXT
+from llmonpy_step import *
 from llm_client import LlmClient
 from trace_log import LlmClientInfo
 
@@ -109,7 +109,7 @@ class LLMonPyPromptEvaluator(LLMonPyStep):
         result = LlmClientInfo(self.llm_client.model_name, {TEMP_SETTING_KEY: self.temp})
         return result
 
-    def execute_step(self, recorder):
+    def execute_step(self, recorder: TraceLogRecorderInterface):
         prompt_dict = self.prompt.to_dict()
         recorder.log_prompt_template(self.prompt.get_prompt_text())
         prompt_text = self.template.render(prompt_dict)
@@ -131,7 +131,7 @@ class LLMonPyPromptEvaluator(LLMonPyStep):
                     raise e
                 else:
                     continue
-        return result, self
+        return result, recorder
 
 
 def create_prompt_steps(prompt, client_list, temp_list=None):
