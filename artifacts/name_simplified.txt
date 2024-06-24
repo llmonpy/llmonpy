@@ -1,0 +1,46 @@
+I need to name an exciting new technique for responding to requests that are given to LLMs to respond to.  
+It is well known LLMs give better responses when shown given examples of good responses.  I have created a 
+way to give LLMs an example of a good answer for the exact request they are responding too.  Given a 
+request, I ask 4 different LLMs to respond.  Then I use another set of LLMs to judge and rank the responses.
+The winning response is determined by majority vote of the LLM judges.  Then there is another round of response
+generation, but the winner of the last round is given as example of a good response. 
+Then the judges are used again to compare the winner of the first round against the winner of the 2nd round.
+If the 2nd round wins, the cycle is repeated but with the winner of 
+the 2nd round as the example of a good response. This continues as long as the responses keep getting better.
+
+Some examples of good names for other algorithms are:
+
+1. "Genetic Algorithms": simulate the process of evolution to solve optimization problems
+2. "Quicksort": a sorting algorithm that is not the fastest but is very fast in practice.
+3. "Ant Colony Optimization": Inspired by the foraging behavior of ants, this algorithm is used for solving 
+    combinatorial optimization problems. Ants deposit pheromones to mark paths, which influences the 
+    behavior of other ants, leading to optimal solutions over time.
+4. YOLO (You Only Look Once): A real-time object detection algorithm that processes images in a single pass 
+    through the network, making it faster and more efficient. The catchy name emphasizes the algorithm's 
+    efficiency and speed.
+5. PageRank: Developed by Google founders Larry Page and Sergey Brin, this algorithm ranks web pages in 
+    search engine results. The name is a play on Larry Page's name and the idea of ranking pages.
+	
+Some examples of good names for this process:
+ 1. "Iterative Response Enhancement"
+ 2. "Refinement Cycle"
+ 3. "Iterative Excellence Tuning"
+ 
+I would like you to suggest a name for my prompting technique.  Please reply with JSON in the form:
+{"name": "your name suggestion"}.  Do not include any other text in your response.
+
+4o: Iterative Excellence Tuning
+Sonnet 3.5: Iterative Champion Refinement
+Opus: Iterative Prompt Refinement
+G-Flash: Iterative Response Enhancement
+G-Pro: ResponseRank
+
+
+round 2:
+4o: Progressive Response Refinement
+Sonnet 3.5: Competitive Cascade Refinement
+Opus: Evolutionary Prompt Optimization
+g-flash: LLM Accent
+g-pro:AscendVote
+
+
