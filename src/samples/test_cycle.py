@@ -20,7 +20,7 @@ from llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC
     MISTRAL_8X22B, ANTHROPIC_OPUS, ALL_CLIENT_LIST
 from llmon_pypeline import LLMonPypeline
 from llmonpy_step import TraceLogRecorderInterface
-from llmonpy_tournament import ChampionCycle
+from llmonpy_tournament import RefinementCycle
 from prompt import create_prompt_steps
 from system_startup import system_startup, system_stop
 from test_tourney import NameIterativeRefinementTournamentPrompt
@@ -39,9 +39,9 @@ class GenerateNameCycle(LLMonPypeline):
         first_round_generators = create_prompt_steps(NameIterativeRefinementTournamentPrompt(), first_round_client_list, [0.0])
         generators = create_prompt_steps(NameIterativeRefinementTournamentPrompt(), client_list, [0.0])
         judge_list = create_prompt_steps(NameIterativeRefinementTournamentPrompt.JudgePrompt(), judge_client_list)
-        tournament = ChampionCycle(NameIterativeRefinementTournamentPrompt().get_step_name(), generators, judge_list,
-                                   first_round_generators, 3, 3 )
-        result_list, _ = tournament.execute_step(recorder)
+        cycle = RefinementCycle(NameIterativeRefinementTournamentPrompt().get_step_name(), generators, judge_list,
+                                     first_round_generators, 3, 3)
+        result_list, _ = cycle.execute_step(recorder)
         for result in result_list:
             print("name:" + result.name)
         return result_list[0], recorder

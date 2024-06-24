@@ -160,7 +160,7 @@ class LLMonPyTournament(LLMonPypeline):
         return result, recorder
 
 
-class ChampionCycle(LLMonPypeline):
+class RefinementCycle(LLMonPypeline):
     def __init__(self, generation_prompt_name, contestant_list:[LLMonPyStep], judge_list:[LLMonPyStep],
                  first_round_contestant_list=None, number_of_examples:int = 1, max_cycles:int = 4):
         self.generation_prompt_name = generation_prompt_name
