@@ -173,7 +173,6 @@ class OpenAIModel(LlmClient):
                     response_dict = json.loads(response_text)
                 except Exception as e:
                     continue
-
             input_cost, output_cost = self.calculate_costs(completion.usage.prompt_tokens, completion.usage.completion_tokens)
             result = LlmClientResponse(response_text, response_dict, input_cost, output_cost)
         if result is None and json_output:
