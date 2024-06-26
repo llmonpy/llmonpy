@@ -1,0 +1,34 @@
+{
+"checklist": [
+{
+"criteria": "The name is descriptive and clearly relates to the technique.",
+"passing_response": "{\"name\": \"Iterative Enhancement\"}",
+"failing_response": "{\"name\": \"Super Response\"}"
+},
+{
+"criteria": "The name is unique and not easily confused with existing algorithms.",
+"passing_response": "{"name": "Response Amplifier"}",
+"failing_response": "{"name": "Response Generator"}"
+},
+{
+"criteria": "The name is memorable and catchy.",
+"passing_response": "{"name": "Response Relay"}",
+"failing_response": "{"name": "Response Ranking Technique"}"
+},
+{
+"criteria": "The name hints at the iterative or competitive nature of the technique.",
+"passing_response": "{"name": "Response Showdown"}",
+"failing_response": "{"name": "Response Selection"}"
+},
+{
+"criteria": "The name is concise, ideally one to three words.",
+"passing_response": "{"name": "Judge and Improve"}",
+"failing_response": "{"name": "Algorithm for Judging and Improving Responses"}"
+},
+{
+"criteria": "The name avoids technical jargon that may not be understood by a general audience.",
+"passing_response": "{"name": "Response Ladder"}",
+"failing_response": "{"name": "Iterative Response Optimization Technique"}"
+}
+]
+}

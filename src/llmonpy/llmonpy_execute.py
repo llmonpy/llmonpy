@@ -73,6 +73,11 @@ def do_llmonpy_parallel_step(step: LLMonPyStep, recorder: TraceLogRecorderInterf
 
 
 def do_step_list_wait(step_list:[LLMonPyStep], recorder: TraceLogRecorderInterface):
+    future_step_list = do_step_list_no_wait(step_list, recorder)
+    result = future_step_list.wait()
+    return result
+
+def do_step_list_no_wait(step_list:[LLMonPyStep], recorder: TraceLogRecorderInterface):
     result = FutureStepList()
     for step in step_list:
         future, child_recorder = do_llmonpy_parallel_step(step, recorder)

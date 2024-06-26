@@ -1,0 +1,24 @@
+{
+    "checklist": [
+        {
+            "criteria": "Response follows the requested format (JSON, {\"name\": \"...\"} ).",
+            "passing_response": "{\"name\": \"Iterative Refinement Learning\"}",
+            "failing_response": "Iterative Refinement Learning"
+        },
+        {
+            "criteria": "Response provides only one name suggestion.",
+            "passing_response": "{\"name\": \"Emergent Consensus Prompting\"}",
+            "failing_response": "{\"name\": \"Emergent Consensus Prompting\", \"name2\": \"Iterative Refinement Learning\"}"
+        },
+        {
+            "criteria": "The suggested name is relevant to the described technique.",
+            "passing_response": "{\"name\": \"Ranked Response Refinement\"}",
+            "failing_response": "{\"name\": \"Fuzzy Logic Forest\"}"
+        },
+        {
+            "criteria": "The suggested name is reasonably concise and easy to understand.",
+            "passing_response": "{\"name\": \"Evolutionary Prompt Optimization\"}",
+            "failing_response": "{\"name\": \"Multi-Agent Ranked Response Iterative Refinement Protocol\"}"
+        }
+    ]
+}

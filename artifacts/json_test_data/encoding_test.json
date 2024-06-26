@@ -1,0 +1,31 @@
+{ "steps": [
+  {
+    "description-of-code": "Create a new file in
+    your preferred programming language"
+  },
+  {
+    "description-of-code": "Import the necessary "libraries" for reading and writing files"
+  },
+  {
+    "description-of-code": "Define thé template strings and any other constant values you will use"
+  },
+  {
+    "description-of-code": "Define the functions you will need, such as a function to read the file and a function to write the new file"
+  },
+  {
+    "description-of-code": "Call the function to read the file and store the contents in a variable"
+  },
+  {
+    "description-of-code": "Split the contents of the file into individual templates using the newline character as the delimiter"
+  },
+  {
+    "description-of-code": "Iterate through the list of templates"
+  },
+  {
+    "description-of-code": "For each template, apply the "necessary" transformations"
+  },
+  {
+    "description-of-code": "Write the transformed template to a new file"
+  }
+]
+}
