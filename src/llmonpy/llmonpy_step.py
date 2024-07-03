@@ -21,10 +21,21 @@ from config import llmonpy_config
 LLMONPY_OUTPUT_FORMAT_JSON = "json"
 LLMONPY_OUTPUT_FORMAT_TEXT = "text"
 EXAMPLE_LIST_KEY = "example_list"
+STEP_NAME_SEPARATOR = ":"
 
 STEP_STATUS_NO_STATUS = 0
 STEP_STATUS_SUCCESS = 200
 STEP_STATUS_FAILURE = 500
+
+def class_has_no_superclass(class_obj):
+    return class_obj.__bases__ == (object,)
+
+
+def get_step_name_from_class_hierarchy(class_obj):
+    result = "" if class_has_no_superclass(class_obj) else (get_step_name_from_class_hierarchy(class_obj.__bases__[0])
+                                                            + STEP_NAME_SEPARATOR)
+    result += class_obj.__module__ + "." + class_obj.__name__
+    return result
 
 
 class LLMonPyStepOutput:
@@ -109,7 +120,7 @@ class LLMonPyStep:
         return llmonpy_config().thread_pool
 
     def get_step_name(self):
-        result = self.__class__.__module__ + "." + self.__class__.__name__
+        result = get_step_name_from_class_hierarchy(self.__class__)
         return result
 
     def get_input_dict(self, recorder: TraceLogRecorderInterface):

@@ -6,3 +6,4 @@ pip install --upgrade anthropic
 pip install --upgrade nothingpy
 pip install --upgrade jinja2
 pip install --upgrade sqlalchemy
+pip install --upgrade flask

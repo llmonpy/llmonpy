@@ -6,3 +6,4 @@ pip install anthropic
 pip install nothingpy
 pip install jinja2
 pip install sqlalchemy
+pip install flask

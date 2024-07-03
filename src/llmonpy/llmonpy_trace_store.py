@@ -27,6 +27,7 @@ EVENT_ID_COLUMN_NAME = "event_id"
 STEP_ID_COLUMN_NAME = "step_id"
 STEP_NAME_COLUMN_NAME = "step_name"
 TOURNEY_RESULT_ID_COLUMN_NAME = "tourney_result_id"
+START_TIME_COLUMN_NAME = "start_time"
 
 
 class LLMonPyConnectionPool:
@@ -183,6 +184,19 @@ class JSONTable:
                 result.append(value)
         return result
 
+    def get_all(self, object_factory):
+        statement = io.StringIO()
+        statement.write("SELECT " + JSON_STRING_COLUMN_NAME + " FROM " + self.table_name)
+        statement_text = statement.getvalue()
+        with self.connection_pool.acquire() as connection:
+            query_result = connection.execute(statement_text)
+            result = []
+            for row in query_result.fetchall():
+                dictionary = json.loads(row[0])
+                value = object_factory(dictionary)
+                result.append(value)
+        return result
+
 
 class SqliteLLMonPyTraceStore:
     def __init__(self, data_directory, trace_factory, step_record_factory, event_factory, tourney_result_factory):
@@ -206,7 +220,7 @@ class SqliteLLMonPyTraceStore:
         trace_list_table_column_list = [JSONTableColumn(TRACE_ID_COLUMN_NAME, True, True),
                                         JSONTableColumn(TRACE_GROUP_ID_COLUMN_NAME, True),
                                         JSONTableColumn(VARIATION_OF_TRACE_ID_COLUMN_NAME, True),
-                                        JSONTableColumn(TITLE_COLUMN_NAME, False)]
+                                        JSONTableColumn(START_TIME_COLUMN_NAME, False)]
         self.trace_list_table = JSONTable(self.connection_pool, "trace", trace_list_table_column_list,
                                           self.trace_factory)
         self.trace_list_table.create_table()
@@ -233,6 +247,10 @@ class SqliteLLMonPyTraceStore:
 
     def insert_trace(self, trace):
         self.trace_list_table.insert_rows([trace])
+
+    def get_trace_list(self):
+        result = self.trace_list_table.get_all(self.trace_factory)
+        return result
 
     def insert_step_records(self, step_record_list):
         self.step_record_table.insert_rows(step_record_list)

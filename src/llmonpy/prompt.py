@@ -56,7 +56,8 @@ class LLMonPyPrompt:
         result = LLMONPY_OUTPUT_FORMAT_JSON if self.get_json_output() else LLMONPY_OUTPUT_FORMAT_TEXT
 
     def get_step_name(self):
-        result = self.__class__.__module__ + "." + self.__class__.__name__
+        class_obj = self.__class__
+        result = get_step_name_from_class_hierarchy(self.__class__)
         return result
 
     def to_dict(self):

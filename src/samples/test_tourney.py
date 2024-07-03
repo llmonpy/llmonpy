@@ -133,8 +133,8 @@ class NameIterativeRefinementTournamentPrompt(LLMonPyPrompt):
             """
         json_output = True
 
-        def __init__(self):
-            super().__init__()
+        def __init__(self, name_of_step_being_judged):
+            super().__init__(name_of_step_being_judged)
             self.candidate_1_name = None
             self.candidate_2_name = None
 
@@ -161,7 +161,9 @@ class GenerateNamePypeline(LLMonPypeline):
                        ANTHROPIC_OPUS]
         judge_client_list = [MISTRAL_LARGE, GEMINI_FLASH, MISTRAL_7B, MISTRAL_8X22B, ANTHROPIC_HAIKU]
         generators = create_prompt_steps(NameIterativeRefinementTournamentPrompt(), client_list, [0.0])
-        judge_list = create_prompt_steps(NameIterativeRefinementTournamentPrompt.JudgePrompt(), judge_client_list)
+        generator_name = NameIterativeRefinementTournamentPrompt().get_step_name()
+        judge_list = create_prompt_steps(NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_name), judge_client_list)
+        judge_step_name = judge_list[0].get_step_name()
         tournament = LLMonPyTournament(generators, judge_list)
         result_list, _ = do_llmonpy_step(tournament, recorder)
         for result in result_list:

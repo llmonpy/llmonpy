@@ -29,7 +29,7 @@ from system_services import system_services
 
 class TraceInfo:
     def __init__(self, trace_id, trace_group_id, variation_of_trace_id, title, start_time=None, end_time=None,
-                 status_code: int = STEP_STATUS_NO_STATUS):
+                 status_code: int = STEP_STATUS_NO_STATUS, cost=0.0):
         self.trace_id = trace_id
         self.trace_group_id = trace_group_id
         self.variation_of_trace_id = variation_of_trace_id
@@ -37,6 +37,7 @@ class TraceInfo:
         self.start_time = start_time
         self.end_time = end_time
         self.status_code = status_code
+        self.cost = cost
 
     def to_dict(self):
         result = copy.copy(vars(self))
@@ -393,16 +394,16 @@ class TraceLogRecorder (TraceLogRecorderInterface):
             if self.parent_recorder is not None:
                 self.parent_recorder.record_cost(cost)
 
-    def create_tourney_result(self, number_of_judges) -> TourneyResult:
+    def create_tourney_result(self, number_of_judges, judge_step_name) -> TourneyResult:
         tourney_result_id = str(uuid.uuid4())
         result = TourneyResult(tourney_result_id, self.trace_data.step_id, self.trace_data.trace_id,
-                               self.trace_data.step_name, self.trace_data.input_dict, number_of_judges)
+                               judge_step_name, self.trace_data.input_dict, number_of_judges)
         return result
 
     def record_tourney_result(self, contestant_list: [LLMonPyStepOutput], tourney_result):
         contestant_list = copy.deepcopy(contestant_list)
         tourney_result.contestant_list = contestant_list
-        self.trace_log_service.record_trourney_result(tourney_result)
+        self.trace_log_service.record_tourney_result(tourney_result)
            
     def finish_child_step(self, output_dict, status_code=STEP_STATUS_SUCCESS,
                           cost=None):
@@ -420,6 +421,8 @@ class TraceLogRecorder (TraceLogRecorderInterface):
         self.trace_data.output_format = self.step.get_output_format()
         self.trace_data.status_code = status_code
         self.trace_log_service.record_step(self.trace_data)
+        #if self.parent_recorder is None:
+            #store trace log to service service
 
 
 class TraceLogService:
@@ -487,7 +490,7 @@ class TraceLogService:
         with self.write_lock:
             self.event_list.append(event)
 
-    def record_trourney_result(self, tourney_result):
+    def record_tourney_result(self, tourney_result):
         with self.write_lock:
             self.tourney_result_list.append(tourney_result)
 

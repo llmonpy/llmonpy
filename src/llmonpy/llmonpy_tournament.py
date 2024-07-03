@@ -20,7 +20,7 @@ import uuid
 from llmon_pypeline import LLMonPypeline
 from llmonpy_execute import do_llmonpy_parallel_step, do_llmonpy_step
 from prompt import LLMonPyPrompt
-from llmonpy_step import LLMonPyStep, LLMonPyStepOutput, TraceLogRecorderInterface
+from llmonpy_step import LLMonPyStep, LLMonPyStepOutput, TraceLogRecorderInterface, STEP_NAME_SEPARATOR
 
 
 class JudgedOutput(LLMonPyStepOutput):
@@ -39,7 +39,8 @@ def judge_output(contestant_list, judge_list, thread_pool, recorder):
     start_index = 0
     contest_list = []
     number_of_contestants = len(contestant_list)
-    tourney_result = recorder.create_tourney_result(len(judge_list))
+    judge_step_name = judge_list[0].get_step_name()
+    tourney_result = recorder.create_tourney_result(len(judge_list), judge_step_name)
     while start_index < (number_of_contestants - 1):
         for i in range(start_index + 1, number_of_contestants):
             contest_list.append(JudgedContest(contestant_list[start_index], contestant_list[i]))
@@ -76,6 +77,14 @@ class TournamentJudgePrompt(LLMonPyPrompt):
         def from_dict(dictionary):
             result = TournamentJudgePrompt.LLMonPyOutput(**dictionary)
             return result
+
+    def __init__(self, name_of_step_being_judged):
+        self.name_of_step_being_judged = name_of_step_being_judged
+
+    def get_step_name(self):
+        result = (self.name_of_step_being_judged + STEP_NAME_SEPARATOR + self.__class__.__module__ + "."
+                  + self.__class__.__name__)
+        return result
 
     def set_values(self, candidate_1, candidate_2):
         raise NotImplementedError()
