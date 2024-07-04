@@ -18,6 +18,8 @@ import os
 import sqlite3
 from queue import Queue
 
+from system_startup import system_startup, system_stop
+
 JSON_STRING_COLUMN_NAME = "json_string"
 TRACE_ID_COLUMN_NAME = "trace_id"
 TRACE_GROUP_ID_COLUMN_NAME = "trace_group_id"
@@ -245,20 +247,11 @@ class SqliteLLMonPyTraceStore:
                                               self.tourney_result_factory)
         self.tourney_result_table.create_table()
 
-    def insert_trace(self, trace):
-        self.trace_list_table.insert_rows([trace])
-
-    def get_trace_list(self):
-        result = self.trace_list_table.get_all(self.trace_factory)
-        return result
+    def insert_trace_info(self, trace_list):
+        self.trace_list_table.insert_rows(trace_list)
 
     def insert_step_records(self, step_record_list):
         self.step_record_table.insert_rows(step_record_list)
-
-    def get_steps_for_trace(self, trace_id):
-        trace_id_condition = QueryCondition(TRACE_ID_COLUMN_NAME, "=", trace_id)
-        record_list = self.step_record_table.select_rows([trace_id_condition], self.step_record_factory)
-        return record_list
 
     def insert_events(self, event_list):
         self.event_table.insert_rows(event_list)
@@ -266,11 +259,32 @@ class SqliteLLMonPyTraceStore:
     def insert_tourney_results(self, tourney_result_list):
         self.tourney_result_table.insert_rows(tourney_result_list)
 
+    def get_trace_list(self):
+        result = self.trace_list_table.get_all(self.trace_factory)
+        return result
+
+    def get_trace_by_id(self, trace_id):
+        trace_id_condition = QueryCondition(TRACE_ID_COLUMN_NAME, "=", trace_id)
+        record_list = self.trace_list_table.select_rows([trace_id_condition], self.trace_factory)
+        result = record_list[0] if record_list is not None and len(record_list) > 0 else None
+        return result
+
+    def get_steps_for_trace(self, trace_id):
+        trace_id_condition = QueryCondition(TRACE_ID_COLUMN_NAME, "=", trace_id)
+        step_list = self.step_record_table.select_rows([trace_id_condition], self.step_record_factory)
+        return step_list
+
+    def get_events_for_trace(self, trace_id):
+        trace_id_condition = QueryCondition(TRACE_ID_COLUMN_NAME, "=", trace_id)
+        event_list = self.event_table.select_rows([trace_id_condition], self.event_factory)
+        return event_list
+
     def get_events_for_step(self, step_id):
         step_id_condition = QueryCondition(STEP_ID_COLUMN_NAME, "=", step_id)
         event_list = self.event_table.select_rows([step_id_condition], self.event_factory)
         return event_list
 
-
-
-
+    def get_tourney_results_for_trace(self, trace_id):
+        trace_id_condition = QueryCondition(TRACE_ID_COLUMN_NAME, "=", trace_id)
+        tourney_list = self.tourney_result_table.select_rows([trace_id_condition], self.tourney_result_factory)
+        return tourney_list

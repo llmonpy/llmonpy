@@ -7,3 +7,4 @@ pip install nothingpy
 pip install jinja2
 pip install sqlalchemy
 pip install flask
+pip install flask_cors

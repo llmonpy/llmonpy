@@ -13,7 +13,9 @@
 #   COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 #   OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 import concurrent
+import copy
 import json
+import uuid
 
 from config import llmonpy_config
 
@@ -56,6 +58,40 @@ class LLMonPyStepOutput:
     @staticmethod
     def from_dict(dict):
         pass
+
+
+class DictLLMonPyStepOutput(LLMonPyStepOutput):
+    def __init__(self, output_dict):
+        self.output_dict = output_dict
+
+    def to_dict(self):
+        return self.output_dict
+
+    @staticmethod
+    def from_dict(dict):
+        result = DictLLMonPyStepOutput(dict)
+        return result
+
+
+class JudgedOutput(LLMonPyStepOutput):
+    def __init__(self, step_output):
+        self.output_id = str(uuid.uuid4())
+        self.step_output = step_output
+        self.victory_count = 0
+
+    def to_dict(self):
+        result = copy.deepcopy(vars(self))
+        result["step_output"] = self.step_output.to_dict()
+        return result
+
+    @staticmethod
+    def from_dict(dictionary):
+        step_output = DictLLMonPyStepOutput.from_dict(dictionary["step_output"])
+        result = JudgedOutput(None)
+        result.step_output = step_output
+        result.output_id = dictionary["output_id"]
+        result.victory_count = dictionary["victory_count"]
+        return result
 
 
 class TourneyResultInterface:

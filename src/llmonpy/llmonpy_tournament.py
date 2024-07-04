@@ -20,19 +20,8 @@ import uuid
 from llmon_pypeline import LLMonPypeline
 from llmonpy_execute import do_llmonpy_parallel_step, do_llmonpy_step
 from prompt import LLMonPyPrompt
-from llmonpy_step import LLMonPyStep, LLMonPyStepOutput, TraceLogRecorderInterface, STEP_NAME_SEPARATOR
-
-
-class JudgedOutput(LLMonPyStepOutput):
-    def __init__(self, step_output):
-        self.output_id = str(uuid.uuid4())
-        self.step_output = step_output
-        self.victory_count = 0
-
-    def to_dict(self):
-        result = copy.deepcopy(vars(self))
-        result["step_output"] = self.step_output.to_dict()
-        return result
+from llmonpy_step import LLMonPyStep, LLMonPyStepOutput, TraceLogRecorderInterface, STEP_NAME_SEPARATOR, \
+    DictLLMonPyStepOutput, JudgedOutput
 
 
 def judge_output(contestant_list, judge_list, thread_pool, recorder):

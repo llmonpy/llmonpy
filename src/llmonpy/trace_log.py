@@ -22,9 +22,12 @@ import uuid
 
 from config import llmonpy_config
 from llmonpy_step import LLMonPyStepOutput, LLMONPY_OUTPUT_FORMAT_JSON, STEP_STATUS_NO_STATUS, STEP_STATUS_SUCCESS, \
-    TraceLogRecorderInterface, TourneyResultInterface
+    TraceLogRecorderInterface, TourneyResultInterface, JudgedOutput
 from llmonpy_trace_store import SqliteLLMonPyTraceStore
 from system_services import system_services
+from system_startup import system_startup, system_stop
+
+NO_VARIATION_OF_TRACE_ID = "NO_VARIATION_OF_TRACE_ID"
 
 
 class TraceInfo:
@@ -32,7 +35,7 @@ class TraceInfo:
                  status_code: int = STEP_STATUS_NO_STATUS, cost=0.0):
         self.trace_id = trace_id
         self.trace_group_id = trace_group_id
-        self.variation_of_trace_id = variation_of_trace_id
+        self.variation_of_trace_id = variation_of_trace_id if variation_of_trace_id is not None else NO_VARIATION_OF_TRACE_ID
         self.title = title
         self.start_time = start_time
         self.end_time = end_time
@@ -51,11 +54,11 @@ class TraceInfo:
 
     @staticmethod
     def from_dict(dict):
+        if dict["start_time"] is not None and isinstance(dict["start_time"], str):
+            dict["start_time"] = datetime.fromisoformat(dict["start_time"])
+        if dict["end_time"] is not None and isinstance(dict["end_time"], str):
+            dict["end_time"] = datetime.fromisoformat(dict["end_time"])
         result = TraceInfo(**dict)
-        if result["start_time"] is not None and isinstance(result["start_time"], str):
-            result["start_time"] = datetime.fromisoformat(result["start_time"])
-        if result["end_time"] is not None and isinstance(result["end_time"], str):
-            result["end_time"] = datetime.fromisoformat(result["end_time"])
         return result
 
 
@@ -241,7 +244,7 @@ class TourneyResult(TourneyResultInterface):
     @staticmethod
     def from_dict(dictionary):
         tourney_result = TourneyResult(**dictionary)
-        tourney_result.contestant_list = [LLMonPyStepOutput.from_dict(contestant) for contestant in tourney_result.contestant_list] if tourney_result.contestant_list is not None else []
+        tourney_result.contestant_list = [JudgedOutput.from_dict(contestant) for contestant in tourney_result.contestant_list] if tourney_result.contestant_list is not None else []
         tourney_result.contest_result_list = [ContestResult.from_dict(contest_result) for contest_result in tourney_result.contest_result_list] if tourney_result.contest_result_list is not None else []
         return tourney_result
 
@@ -275,13 +278,12 @@ class StepTraceData:
         result = copy.copy(vars(self))
         if result["llm_client_info"] is not None:
             result["llm_client_info"] = result["llm_client_info"].to_dict()
+        result["start_time"] = result["start_time"].isoformat() if result["start_time"] is not None else None
+        result["end_time"] = result["end_time"].isoformat() if result["end_time"] is not None else None
         return result
 
     def to_json(self):
         result_dict = self.to_dict()
-        result_dict["start_time"] = result_dict["start_time"].isoformat() if result_dict[
-                                                                                 "start_time"] is not None else None
-        result_dict["end_time"] = result_dict["end_time"].isoformat() if result_dict["end_time"] is not None else None
         try:
             result = json.dumps(result_dict)
         except Exception as e:
@@ -303,6 +305,25 @@ class StepTraceData:
             result.start_time = datetime.fromisoformat(result.start_time)
         if result.end_time is not None and isinstance(result.end_time, str):
             result.end_time = datetime.fromisoformat(result.end_time)
+        return result
+
+
+class CompleteTraceData:
+    def __init__(self, trace_info: TraceInfo, step_list: [StepTraceData], tourney_result_list: [TourneyResult]):
+        self.trace_info = trace_info
+        self.step_list = step_list
+        self.tourney_result_list = tourney_result_list
+
+    def to_dict(self):
+        result = copy.copy(vars(self))
+        result["trace_info"] = self.trace_info.to_dict()
+        result["step_list"] = [step.to_dict() for step in self.step_list]
+        result["tourney_result_list"] = [tourney_result.to_dict() for tourney_result in self.tourney_result_list]
+        return result
+
+    def to_json(self):
+        result_dict = self.to_dict()
+        result = json.dumps(result_dict)
         return result
 
 
@@ -421,8 +442,10 @@ class TraceLogRecorder (TraceLogRecorderInterface):
         self.trace_data.output_format = self.step.get_output_format()
         self.trace_data.status_code = status_code
         self.trace_log_service.record_step(self.trace_data)
-        #if self.parent_recorder is None:
-            #store trace log to service service
+        if self.parent_recorder is None:
+            trace_info = TraceInfo(self.trace_data.trace_id, self.trace_data.trace_group_id, self.trace_data.variation_of_trace_id,
+                      self.trace_data.step_name, self.trace_data.start_time, end_time, status_code, self.trace_data.cost)
+            self.trace_log_service.record_trace_info(trace_info)
 
 
 class TraceLogService:
@@ -431,6 +454,7 @@ class TraceLogService:
         self.step_file_path = os.path.join(self.data_directory, "steps.jsonl")
         self.events_file_path = os.path.join(self.data_directory, "events.jsonl")
         self.tourney_result_file_path = os.path.join(self.data_directory, "tourney_results.jsonl")
+        self.trace_info_file_path = os.path.join(self.data_directory, "trace_info.jsonl")
         self.llmonpy_trace_store: SqliteLLMonPyTraceStore = SqliteLLMonPyTraceStore(self.data_directory,
                                                                                     TraceInfo.from_dict,
                                                                                     StepTraceData.from_dict,
@@ -442,6 +466,7 @@ class TraceLogService:
         self.recorded_step_list = []
         self.event_list = []
         self.tourney_result_list = []
+        self.trace_info_list = []
         self.write_timer = None
         self.start_timer()
 
@@ -482,6 +507,10 @@ class TraceLogService:
         result = self.llmonpy_trace_store.get_events_for_step(step_id)
         return result
 
+    def record_trace_info(self, trace_info):
+        with self.write_lock:
+            self.trace_info_list.append(trace_info)
+
     def record_step(self, trace_data):
         with self.write_lock:
             self.recorded_step_list.append(trace_data)
@@ -512,6 +541,12 @@ class TraceLogService:
             self.tourney_result_list = []
         return result
 
+    def get_and_clear_recorded_trace_info(self):
+        with self.write_lock:
+            result = self.trace_info_list
+            self.trace_info_list = []
+        return result
+
     def start_timer(self):
         self.write_timer = threading.Timer(interval=1.0, function=self.write_data_and_start_timer)
         self.write_timer.start()
@@ -539,6 +574,23 @@ class TraceLogService:
                 for tourney_result in tourney_results_ready_to_write:
                     file.write(tourney_result.to_json() + "\n")
             self.llmonpy_trace_store.insert_tourney_results(tourney_results_ready_to_write)
+        trace_info_ready_to_write = self.get_and_clear_recorded_trace_info()
+        if len(trace_info_ready_to_write) > 0:
+            with open(self.trace_info_file_path, "a") as file:
+                for trace_info in trace_info_ready_to_write:
+                    file.write(trace_info.to_json() + "\n")
+            self.llmonpy_trace_store.insert_trace_info(trace_info_ready_to_write)
+
+    def get_trace_list(self) -> [TraceInfo]:
+        result = self.llmonpy_trace_store.get_trace_list()
+        return result
+
+    def get_complete_trace_by_id(self, trace_id: str) -> CompleteTraceData:
+        trace_info = self.llmonpy_trace_store.get_trace_by_id(trace_id)
+        step_list = self.llmonpy_trace_store.get_steps_for_trace(trace_id)
+        tourney_result_list = self.llmonpy_trace_store.get_tourney_results_for_trace(trace_id)
+        result = CompleteTraceData(trace_info, step_list, tourney_result_list)
+        return result
 
 
 def init_trace_log_service():
@@ -549,3 +601,22 @@ def init_trace_log_service():
 def trace_log_service() -> TraceLogService:
     result = system_services().trace_log_service
     return result
+
+
+if __name__ == "__main__":
+    system_startup()
+    print("Running Test trace_log.py")
+    try:
+        trace_list = trace_log_service().get_trace_list()
+        for main_trace_info in trace_list:
+            print("id: " + main_trace_info.trace_id + " title: " + main_trace_info.title + " start: " + str(main_trace_info.start_time) +
+                    " cost: " + str(main_trace_info.cost))
+        main_trace_id = trace_list[0].trace_id
+        complete_trace = trace_log_service().get_complete_trace_by_id(main_trace_id)
+        print("complete trace: " + complete_trace.to_json())
+    except Exception as e:
+        stack_trace = traceback.format_exc()
+        error_message = str(e) + " " + stack_trace
+        print(error_message)
+        system_stop()
+    exit(0)

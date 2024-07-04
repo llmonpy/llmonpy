@@ -7,3 +7,4 @@ pip install --upgrade nothingpy
 pip install --upgrade jinja2
 pip install --upgrade sqlalchemy
 pip install --upgrade flask
+pip install --upgrade flask_cors
