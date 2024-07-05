@@ -214,13 +214,14 @@ class ContestResult:
 
 
 class TourneyResult(TourneyResultInterface):
-    def __init__(self, tourney_result_id, step_id, trace_id, step_name, input_data, number_of_judges,
+    def __init__(self, tourney_result_id, step_id, trace_id, step_name, start_time, input_data, number_of_judges,
                  contestant_list: [LLMonPyStepOutput] = None,
                  contest_result_list: [ContestResult] = None):
         self.tourney_result_id = tourney_result_id
         self.step_id = step_id
         self.trace_id = trace_id
         self.step_name = step_name
+        self.start_time = start_time
         self.input_data = input_data
         self.number_of_judges = number_of_judges
         self.contestant_list = contestant_list if contestant_list is not None else []
@@ -232,6 +233,7 @@ class TourneyResult(TourneyResultInterface):
 
     def to_dict(self):
         result = copy.deepcopy(vars(self))
+        result["start_time"] = result["start_time"].isoformat() if result["start_time"] is not None else None
         result["contestant_list"] = [contestant.to_dict() for contestant in result["contestant_list"]]
         result["contest_result_list"] = [contest_result.to_dict() for contest_result in result["contest_result_list"]]
         return result
@@ -246,6 +248,8 @@ class TourneyResult(TourneyResultInterface):
         tourney_result = TourneyResult(**dictionary)
         tourney_result.contestant_list = [JudgedOutput.from_dict(contestant) for contestant in tourney_result.contestant_list] if tourney_result.contestant_list is not None else []
         tourney_result.contest_result_list = [ContestResult.from_dict(contest_result) for contest_result in tourney_result.contest_result_list] if tourney_result.contest_result_list is not None else []
+        if tourney_result.start_time is not None and isinstance(tourney_result.start_time, str):
+            tourney_result.start_time = datetime.fromisoformat(tourney_result.start_time)
         return tourney_result
 
 
@@ -418,7 +422,7 @@ class TraceLogRecorder (TraceLogRecorderInterface):
     def create_tourney_result(self, number_of_judges, judge_step_name) -> TourneyResult:
         tourney_result_id = str(uuid.uuid4())
         result = TourneyResult(tourney_result_id, self.trace_data.step_id, self.trace_data.trace_id,
-                               judge_step_name, self.trace_data.input_dict, number_of_judges)
+                               judge_step_name, self.trace_data.start_time, self.trace_data.input_dict, number_of_judges)
         return result
 
     def record_tourney_result(self, contestant_list: [LLMonPyStepOutput], tourney_result):
@@ -499,14 +503,6 @@ class TraceLogService:
                                   None, None, client_info, input_dict, start_time)
         return result
 
-    def get_steps_for_trace(self, trace_id):
-        result = self.llmonpy_trace_store.get_steps_for_trace(trace_id)
-        return result
-
-    def get_events_for_step(self, step_id):
-        result = self.llmonpy_trace_store.get_events_for_step(step_id)
-        return result
-
     def record_trace_info(self, trace_info):
         with self.write_lock:
             self.trace_info_list.append(trace_info)
@@ -585,11 +581,27 @@ class TraceLogService:
         result = self.llmonpy_trace_store.get_trace_list()
         return result
 
+    def get_steps_for_trace(self, trace_id):
+        result = self.llmonpy_trace_store.get_steps_for_trace(trace_id)
+        return result
+
+    def get_events_for_step(self, step_id):
+        result = self.llmonpy_trace_store.get_events_for_step(step_id)
+        return result
+
     def get_complete_trace_by_id(self, trace_id: str) -> CompleteTraceData:
         trace_info = self.llmonpy_trace_store.get_trace_by_id(trace_id)
         step_list = self.llmonpy_trace_store.get_steps_for_trace(trace_id)
         tourney_result_list = self.llmonpy_trace_store.get_tourney_results_for_trace(trace_id)
         result = CompleteTraceData(trace_info, step_list, tourney_result_list)
+        return result
+
+    def get_tourney_step_name_list(self) -> [str]:
+        result = self.llmonpy_trace_store.get_tourney_step_name_list()
+        return result
+
+    def get_tourney_results_for_step(self, step_name: str) -> [TourneyResult]:
+        result = self.llmonpy_trace_store.get_tourney_results_for_step(step_name)
         return result
 
 
@@ -613,10 +625,17 @@ if __name__ == "__main__":
                     " cost: " + str(main_trace_info.cost))
         main_trace_id = trace_list[0].trace_id
         complete_trace = trace_log_service().get_complete_trace_by_id(main_trace_id)
+        tourney_step_name_list = trace_log_service().get_tourney_step_name_list()
         print("complete trace: " + complete_trace.to_json())
+        print("tourney step names: " + str(tourney_step_name_list))
+        for step_name in tourney_step_name_list:
+            tourney_results = trace_log_service().get_tourney_results_for_step(step_name)
+            print("tourney results for " + step_name)
+            for tourney_result in tourney_results:
+                print(tourney_result.to_json())
     except Exception as e:
         stack_trace = traceback.format_exc()
         error_message = str(e) + " " + stack_trace
         print(error_message)
-        system_stop()
+    system_stop()
     exit(0)

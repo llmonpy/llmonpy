@@ -165,6 +165,17 @@ class JSONTable:
             connection.commit()
         print("rows inserted")
 
+    def get_distinct_values(self, column_name):
+        statement = io.StringIO()
+        statement.write("SELECT DISTINCT " + column_name + " FROM " + self.table_name)
+        statement_text = statement.getvalue()
+        with self.connection_pool.acquire() as connection:
+            query_result = connection.execute(statement_text)
+            result = []
+            for row in query_result.fetchall():
+                result.append(row[0])
+        return result
+
     def select_rows(self, condition_list, object_factory, condition_operator="AND"):
         statement = io.StringIO()
         statement.write("SELECT " + JSON_STRING_COLUMN_NAME + " FROM " + self.table_name)
@@ -287,4 +298,13 @@ class SqliteLLMonPyTraceStore:
     def get_tourney_results_for_trace(self, trace_id):
         trace_id_condition = QueryCondition(TRACE_ID_COLUMN_NAME, "=", trace_id)
         tourney_list = self.tourney_result_table.select_rows([trace_id_condition], self.tourney_result_factory)
+        return tourney_list
+
+    def get_tourney_step_name_list(self):
+        result = self.tourney_result_table.get_distinct_values(STEP_NAME_COLUMN_NAME)
+        return result
+
+    def get_tourney_results_for_step(self, step_name):
+        step_name_condition = QueryCondition(STEP_NAME_COLUMN_NAME, "=", step_name)
+        tourney_list = self.tourney_result_table.select_rows([step_name_condition], self.tourney_result_factory)
         return tourney_list
