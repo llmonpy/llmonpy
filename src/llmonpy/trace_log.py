@@ -583,16 +583,20 @@ class TraceLogService:
 
     def get_steps_for_trace(self, trace_id):
         result = self.llmonpy_trace_store.get_steps_for_trace(trace_id)
+        result.sort(key=lambda x: x.step_index)
         return result
 
     def get_events_for_step(self, step_id):
         result = self.llmonpy_trace_store.get_events_for_step(step_id)
+        result.sort(key=lambda x: x.event_time)
         return result
 
     def get_complete_trace_by_id(self, trace_id: str) -> CompleteTraceData:
         trace_info = self.llmonpy_trace_store.get_trace_by_id(trace_id)
         step_list = self.llmonpy_trace_store.get_steps_for_trace(trace_id)
+        step_list.sort(key=lambda x: x.step_index)
         tourney_result_list = self.llmonpy_trace_store.get_tourney_results_for_trace(trace_id)
+        tourney_result_list.sort(key=lambda x: x.start_time)
         result = CompleteTraceData(trace_info, step_list, tourney_result_list)
         return result
 
@@ -600,8 +604,9 @@ class TraceLogService:
         result = self.llmonpy_trace_store.get_tourney_step_name_list()
         return result
 
-    def get_tourney_results_for_step(self, step_name: str) -> [TourneyResult]:
-        result = self.llmonpy_trace_store.get_tourney_results_for_step(step_name)
+    def get_tourney_results_for_step_name(self, step_name: str) -> [TourneyResult]:
+        result = self.llmonpy_trace_store.get_tourney_results_for_step_name(step_name)
+        result.sort(key=lambda x: x.start_time)
         return result
 
 

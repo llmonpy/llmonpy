@@ -304,7 +304,7 @@ class SqliteLLMonPyTraceStore:
         result = self.tourney_result_table.get_distinct_values(STEP_NAME_COLUMN_NAME)
         return result
 
-    def get_tourney_results_for_step(self, step_name):
+    def get_tourney_results_for_step_name(self, step_name):
         step_name_condition = QueryCondition(STEP_NAME_COLUMN_NAME, "=", step_name)
         tourney_list = self.tourney_result_table.select_rows([step_name_condition], self.tourney_result_factory)
         return tourney_list
