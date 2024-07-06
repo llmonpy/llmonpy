@@ -42,6 +42,7 @@ export default defineConfig({
     ],
   },
   server: {
+    cors: true,
     port: 3000,
   },
 })
