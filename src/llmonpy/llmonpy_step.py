@@ -47,6 +47,24 @@ def get_step_name_from_class_hierarchy(class_obj):
     return result
 
 
+class LlmModelInfo:
+    def __init__(self, model_name, client_settings_dict):
+        self.model_name = model_name
+        self.client_settings_dict = client_settings_dict
+
+    def to_dict(self):
+        result = copy.deepcopy(vars(self))
+        return result
+
+    def to_json(self):
+        result = json.dumps(self.to_dict())
+        return result
+
+    @staticmethod
+    def from_dict(dict):
+        return LlmModelInfo(**dict)
+
+
 class LLMonPyStepOutput:
     def __init__(self):
         pass
@@ -81,23 +99,28 @@ class DictLLMonPyStepOutput(LLMonPyStepOutput):
 
 
 class JudgedOutput(LLMonPyStepOutput):
-    def __init__(self, step_output):
-        self.output_id = str(uuid.uuid4())
+    def __init__(self, step_id=None, step_output=None, llm_model_info=None, output_id=None, victory_count=0):
+        self.step_id = step_id
+        self.output_id = str(uuid.uuid4()) if output_id is None else output_id
+        self.llm_model_info = llm_model_info
         self.step_output = step_output
+        self.victory_count = victory_count
+
+    def reset_victory_count(self):
         self.victory_count = 0
 
     def to_dict(self):
         result = copy.deepcopy(vars(self))
         result["step_output"] = self.step_output.to_dict()
+        if result["llm_model_info"] is not None:
+            result["llm_model_info"] = result["llm_model_info"].to_dict()
         return result
 
     @staticmethod
     def from_dict(dictionary):
-        step_output = DictLLMonPyStepOutput.from_dict(dictionary["step_output"])
-        result = JudgedOutput(None)
-        result.step_output = step_output
-        result.output_id = dictionary["output_id"]
-        result.victory_count = dictionary["victory_count"]
+        dictionary["step_output"] = DictLLMonPyStepOutput.from_dict(dictionary["step_output"])
+        dictionary["llm_model_info"] = LlmModelInfo.from_dict(dictionary["llm_model_info"])
+        result = JudgedOutput(**dictionary)
         return result
 
 
@@ -109,6 +132,9 @@ class TourneyResultInterface:
 class TraceLogRecorderInterface:
 
     def get_step_id(self):
+        raise NotImplementedError()
+
+    def get_model_info(self) -> LlmModelInfo:
         raise NotImplementedError()
 
     def get_input_dict(self):
@@ -178,7 +204,7 @@ class LLMonPyStep:
             result = {}
         return result
 
-    def get_llm_client_info(self):
+    def get_llm_model_info(self):
         return None
 
     def get_output_format(self):

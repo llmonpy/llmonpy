@@ -20,7 +20,7 @@ from nothingpy import Nothing
 
 from llmonpy_step import *
 from llm_client import LlmClient
-from trace_log import LlmClientInfo
+from trace_log import LlmModelInfo
 
 DEFAULT_OUTPUT_DICT_KEY = "response_string"
 TEMP_SETTING_KEY = "temp"
@@ -103,8 +103,8 @@ class LLMonPyPromptEvaluator(LLMonPyStep):
         result.update(super_result)
         return result
 
-    def get_llm_client_info(self):
-        result = LlmClientInfo(self.llm_client.model_name, {TEMP_SETTING_KEY: self.temp})
+    def get_llm_model_info(self):
+        result = LlmModelInfo(self.llm_client.model_name, {TEMP_SETTING_KEY: self.temp})
         return result
 
     def execute_step(self, recorder: TraceLogRecorderInterface):

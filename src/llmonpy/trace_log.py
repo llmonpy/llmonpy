@@ -22,7 +22,7 @@ import uuid
 
 from config import llmonpy_config
 from llmonpy_step import LLMonPyStepOutput, LLMONPY_OUTPUT_FORMAT_JSON, STEP_STATUS_NO_STATUS, STEP_STATUS_SUCCESS, \
-    TraceLogRecorderInterface, TourneyResultInterface, JudgedOutput
+    TraceLogRecorderInterface, TourneyResultInterface, JudgedOutput, LlmModelInfo
 from llmonpy_trace_store import SqliteLLMonPyTraceStore
 from system_services import system_services
 from system_startup import system_startup, system_stop
@@ -62,22 +62,7 @@ class TraceInfo:
         return result
 
 
-class LlmClientInfo:
-    def __init__(self, client_name, client_settings_dict):
-        self.client_name = client_name
-        self.client_settings_dict = client_settings_dict
 
-    def to_dict(self):
-        result = copy.deepcopy(vars(self))
-        return result
-
-    def to_json(self):
-        result = json.dumps(self.to_dict())
-        return result
-
-    @staticmethod
-    def from_dict(dict):
-        return LlmClientInfo(**dict)
 
 
 class LLMonPyLogEvent:
@@ -255,7 +240,7 @@ class TourneyResult(TourneyResultInterface):
 
 class StepTraceData:
     def __init__(self, trace_id, trace_group_id, variation_of_trace_id, step_id, step_index,
-                 step_name, step_type, root_step_id, root_step_name, parent_step_id, parent_step_name, llm_client_info, input_dict,
+                 step_name, step_type, root_step_id, root_step_name, parent_step_id, parent_step_name, llm_model_info, input_dict,
                  start_time=None, end_time=None, output_dict=None, output_format=LLMONPY_OUTPUT_FORMAT_JSON,
                  status_code=STEP_STATUS_NO_STATUS, error_list=None, cost=0.0):
         self.trace_id = trace_id
@@ -263,7 +248,7 @@ class StepTraceData:
         self.variation_of_trace_id = variation_of_trace_id
         self.step_id = step_id
         self.step_index = step_index
-        self.llm_client_info = llm_client_info
+        self.llm_model_info = llm_model_info
         self.step_name = step_name
         self.step_type = step_type
         self.root_step_id = root_step_id
@@ -281,19 +266,15 @@ class StepTraceData:
 
     def to_dict(self):
         result = copy.copy(vars(self))
-        if result["llm_client_info"] is not None:
-            result["llm_client_info"] = result["llm_client_info"].to_dict()
+        if result["llm_model_info"] is not None:
+            result["llm_model_info"] = result["llm_model_info"].to_dict()
         result["start_time"] = result["start_time"].isoformat() if result["start_time"] is not None else None
         result["end_time"] = result["end_time"].isoformat() if result["end_time"] is not None else None
         return result
 
     def to_json(self):
         result_dict = self.to_dict()
-        try:
-            result = json.dumps(result_dict)
-        except Exception as e:
-            print(str(e))
-            raise e
+        result = json.dumps(result_dict)
         return result
 
     def add_exception(self, exception):
@@ -304,8 +285,8 @@ class StepTraceData:
     @staticmethod
     def from_dict(dict):
         result = StepTraceData(**dict)
-        if result.llm_client_info is not None:
-            result.llm_client_info = LlmClientInfo.from_dict(result.llm_client_info)
+        if result.llm_model_info is not None:
+            result.llm_model_info = LlmModelInfo.from_dict(result.llm_model_info)
         if result.start_time is not None and isinstance(result.start_time, str):
             result.start_time = datetime.fromisoformat(result.start_time)
         if result.end_time is not None and isinstance(result.end_time, str):
@@ -350,6 +331,9 @@ class TraceLogRecorder (TraceLogRecorderInterface):
 
     def get_step_id(self):
         return self.trace_data.step_id
+
+    def get_model_info(self) -> LlmModelInfo:
+        return self.trace_data.llm_model_info
 
     def get_input_dict(self):
         return self.trace_data.input_dict
@@ -396,7 +380,7 @@ class TraceLogRecorder (TraceLogRecorderInterface):
 
     def create_child_recorder(self, step):
         input_dict = step.get_input_dict(self)
-        client_info = step.get_llm_client_info()
+        client_info = step.get_llm_model_info()
         step_id = str(uuid.uuid4())
         step_index = self.get_next_step_index()
         start_time = datetime.now()
@@ -498,7 +482,7 @@ class TraceLogService:
         start_time = datetime.now()
         input_dict = step.get_input_dict(None)
         step_name = step.get_step_name()
-        client_info = step.get_llm_client_info()
+        client_info = step.get_llm_model_info()
         result = TraceLogRecorder(self, None, None, trace_id, trace_group_id,
                                   variation_of_trace_id, root_step_id, 0, step, root_step_id, step_name,
                                   None, None, client_info, input_dict, start_time)

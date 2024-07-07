@@ -62,9 +62,9 @@ export default {
       console.log("StepContainer: " + this.displayStep.step.step_id)
       this.cost = this.displayStep.step.cost;
       this.stepOutput = this.displayStep.step.output_dict;
-      if (this.displayStep.step.llm_client_info != null) {
-        this.modelName = this.displayStep.step.llm_client_info.client_name;
-        this.settingsString = LLMClientSettingsToString(this.displayStep.step.llm_client_info.client_settings_dict);
+      if (this.displayStep.step.llm_model_info != null) {
+        this.modelName = this.displayStep.step.llm_model_info.model_name;
+        this.settingsString = LLMClientSettingsToString(this.displayStep.step.llm_model_info.client_settings_dict);
       } else {
         this.modelName = null;
         this.settingsString = null;
