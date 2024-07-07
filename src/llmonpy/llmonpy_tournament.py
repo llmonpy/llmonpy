@@ -21,7 +21,7 @@ from llmon_pypeline import LLMonPypeline
 from llmonpy_execute import do_llmonpy_parallel_step, do_llmonpy_step
 from prompt import LLMonPyPrompt
 from llmonpy_step import LLMonPyStep, LLMonPyStepOutput, TraceLogRecorderInterface, STEP_NAME_SEPARATOR, \
-    DictLLMonPyStepOutput, JudgedOutput
+    DictLLMonPyStepOutput, JudgedOutput, STEP_TYPE_TOURNEY, STEP_TYPE_CYCLE, STEP_TYPE_JUDGE
 
 
 def judge_output(contestant_list, judge_list, thread_pool, recorder):
@@ -75,6 +75,9 @@ class TournamentJudgePrompt(LLMonPyPrompt):
                   + self.__class__.__name__)
         return result
 
+    def get_step_type(self) -> str:
+        return STEP_TYPE_JUDGE
+
     def set_values(self, candidate_1, candidate_2):
         raise NotImplementedError()
 
@@ -124,6 +127,9 @@ class LLMonPyTournament(LLMonPypeline):
         self.contestant_list = contestant_list
         self.judge_list = judge_list
 
+    def get_step_type(self) -> str:
+        return STEP_TYPE_TOURNEY
+
     def execute_step(self, recorder: TraceLogRecorderInterface):
         future_list = []
         output_list:[JudgedOutput] = []
@@ -168,6 +174,9 @@ class RefinementCycle(LLMonPypeline):
         self.number_of_examples = number_of_examples
         self.max_cycles = max_cycles
         self.example_list:[LLMonPyPrompt.LLMonPyOutput] = []
+
+    def get_step_type(self) -> str:
+        return STEP_TYPE_CYCLE
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
         tournament = LLMonPyTournament(self.first_round_contestant_list, self.judge_list)

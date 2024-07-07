@@ -25,9 +25,16 @@ LLMONPY_OUTPUT_FORMAT_TEXT = "text"
 EXAMPLE_LIST_KEY = "example_list"
 STEP_NAME_SEPARATOR = ":"
 
+STEP_TYPE_PROMPT = "prompt"
+STEP_TYPE_TOURNEY = "tourney"
+STEP_TYPE_CYCLE = "cycle"
+STEP_TYPE_PYPELINE = "pypeline"
+STEP_TYPE_JUDGE = "judge"
+
 STEP_STATUS_NO_STATUS = 0
 STEP_STATUS_SUCCESS = 200
 STEP_STATUS_FAILURE = 500
+
 
 def class_has_no_superclass(class_obj):
     return class_obj.__bases__ == (object,)
@@ -158,6 +165,9 @@ class LLMonPyStep:
     def get_step_name(self):
         result = get_step_name_from_class_hierarchy(self.__class__)
         return result
+
+    def get_step_type(self) -> str:
+        raise NotImplementedError()
 
     def get_input_dict(self, recorder: TraceLogRecorderInterface):
         example_list = recorder.get_step_examples(self.get_step_name()) if recorder is not None else None

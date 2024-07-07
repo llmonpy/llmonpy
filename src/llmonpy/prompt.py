@@ -94,6 +94,9 @@ class LLMonPyPromptEvaluator(LLMonPyStep):
     def get_step_name(self):
         return self.prompt.get_step_name()
 
+    def get_step_type(self) -> str:
+        return STEP_TYPE_PROMPT
+
     def get_input_dict(self, recorder: TraceLogRecorderInterface):
         super_result = super().get_input_dict(recorder)
         result = self.prompt.to_dict()

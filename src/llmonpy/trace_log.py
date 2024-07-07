@@ -255,7 +255,7 @@ class TourneyResult(TourneyResultInterface):
 
 class StepTraceData:
     def __init__(self, trace_id, trace_group_id, variation_of_trace_id, step_id, step_index,
-                 step_name, root_step_id, root_step_name, parent_step_id, parent_step_name, llm_client_info, input_dict,
+                 step_name, step_type, root_step_id, root_step_name, parent_step_id, parent_step_name, llm_client_info, input_dict,
                  start_time=None, end_time=None, output_dict=None, output_format=LLMONPY_OUTPUT_FORMAT_JSON,
                  status_code=STEP_STATUS_NO_STATUS, error_list=None, cost=0.0):
         self.trace_id = trace_id
@@ -265,6 +265,7 @@ class StepTraceData:
         self.step_index = step_index
         self.llm_client_info = llm_client_info
         self.step_name = step_name
+        self.step_type = step_type
         self.root_step_id = root_step_id
         self.root_step_name = root_step_name
         self.parent_step_id = parent_step_id
@@ -338,7 +339,7 @@ class TraceLogRecorder (TraceLogRecorderInterface):
         self.trace_log_service = trace_log_service
         self.step = step
         self.trace_data = StepTraceData(trace_id, trace_group_id, variation_of_trace_id, step_id, step_index,
-                                        step.get_step_name(),
+                                        step.get_step_name(), step.get_step_type(),
                                         root_step_id, root_step_name, parent_step_id, parent_step_name, client_info,
                                         input_dict, start_time)
         self.root_recorder = root_recorder
@@ -579,6 +580,8 @@ class TraceLogService:
 
     def get_trace_list(self) -> [TraceInfo]:
         result = self.llmonpy_trace_store.get_trace_list()
+        if result is not None and len(result) > 0:
+            result.sort(key=lambda x: x.start_time, reverse=True)
         return result
 
     def get_steps_for_trace(self, trace_id):
@@ -606,7 +609,7 @@ class TraceLogService:
 
     def get_tourney_results_for_step_name(self, step_name: str) -> [TourneyResult]:
         result = self.llmonpy_trace_store.get_tourney_results_for_step_name(step_name)
-        result.sort(key=lambda x: x.start_time)
+        result.sort(key=lambda x: x.start_time, reverse=True)
         return result
 
 
