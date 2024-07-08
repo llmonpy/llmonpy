@@ -22,7 +22,7 @@ from llmonpy_execute import do_llmonpy_parallel_step, do_llmonpy_step
 from prompt import LLMonPyPrompt, create_prompt_steps
 from llmonpy_step import LLMonPyStep, LLMonPyStepOutput, TraceLogRecorderInterface, STEP_NAME_SEPARATOR, \
     DictLLMonPyStepOutput, JudgedOutput, STEP_TYPE_TOURNEY, STEP_TYPE_CYCLE, STEP_TYPE_JUDGE, STEP_TYPE_RANKER, \
-    STEP_TYPE_JURY
+    STEP_TYPE_JURY, STEP_TYPE_GENERATOR
 
 
 class TournamentJudgePrompt(LLMonPyPrompt):
@@ -56,6 +56,50 @@ class TournamentJudgePrompt(LLMonPyPrompt):
     def output_from_dict(self, output_dict):
         result = TournamentJudgePrompt.LLMonPyOutput.from_dict(output_dict)
         return result
+
+
+class TournamentGenerator(LLMonPypeline):
+    def __init__(self, generation_prompt, generation_model_list, generation_temperature_list):
+        self.generation_prompt = generation_prompt
+        self.generation_model_list = generation_model_list
+        self.generation_temperature_list = generation_temperature_list
+        self.contestant_list = create_prompt_steps(generation_prompt, generation_model_list,
+                                                   generation_temperature_list)
+
+    def get_step_type(self) -> str:
+        return STEP_TYPE_GENERATOR
+
+    def get_input_dict(self, recorder: TraceLogRecorderInterface):
+        generation_model_name_list = [model.get_model_name() for model in self.generation_model_list]
+        result = {"prompt_template": self.generation_prompt.get_prompt_text(),
+                  "prompt_input_dict": self.generation_prompt.to_dict(),
+                  "model_list": generation_model_name_list,
+                  "temperature_list": self.generation_temperature_list}
+        return result
+
+    def execute_step(self, recorder: TraceLogRecorderInterface):
+        future_list = []
+        output_list: [JudgedOutput] = []
+        response_dict = {}
+        for contestant in self.contestant_list:
+            future, step_recorder = do_llmonpy_parallel_step(contestant, recorder)
+            future_list.append(future)
+        for future in concurrent.futures.as_completed(future_list):
+            try:
+                output, step_recorder = future.result()
+                output_as_str = str(output)
+                if output_as_str not in response_dict:
+                    print("output received " + output_as_str)
+                    response_dict[output_as_str] = output
+                    judged_output = JudgedOutput(step_recorder.get_step_id(), output, step_recorder.get_model_info())
+                    output_list.append(judged_output)
+                else:
+                    print("duplicate " + output_as_str)
+                    recorder.log_message("duplicate " + output_as_str)
+            except Exception as e:
+                print(str(e))
+                pass
+        return output_list, recorder
 
 
 class CompareOutputStep(LLMonPyStep):
@@ -208,27 +252,10 @@ class LLMonPyTournament(LLMonPypeline):
         return result
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        future_list = []
         output_list: [JudgedOutput] = []
-        response_dict = {}
-        for contestant in self.contestant_list:
-            future, step_recorder = do_llmonpy_parallel_step(contestant, recorder)
-            future_list.append(future)
-        for future in concurrent.futures.as_completed(future_list):
-            try:
-                output, step_recorder = future.result()
-                output_as_str = str(output)
-                if output_as_str not in response_dict:
-                    print("output received " + output_as_str)
-                    response_dict[output_as_str] = output
-                    judged_output = JudgedOutput(step_recorder.get_step_id(), output, step_recorder.get_model_info())
-                    output_list.append(judged_output)
-                else:
-                    print("duplicate " + output_as_str)
-                    recorder.log_message("duplicate " + output_as_str)
-            except Exception as e:
-                print(str(e))
-                pass
+        generate_step = TournamentGenerator(self.generation_prompt, self.generation_model_list,
+                                            self.generation_temperature_list)
+        output_list, _ = do_llmonpy_step(generate_step, recorder)
         rank_step = RankOutputStep(output_list, self.judgement_prompt, self.judgement_model_list,
                                    self.judgement_temperature_list)
         ordered_output_list, step_recorder = do_llmonpy_step(rank_step, recorder)
