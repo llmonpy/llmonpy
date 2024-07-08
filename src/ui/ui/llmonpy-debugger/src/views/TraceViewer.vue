@@ -8,6 +8,7 @@
         item-value="traceId"
         label="Select Trace"
       ></v-select>
+      <v-divider thickness="5" color="primary"></v-divider>
       <v-row v-if="rootDisplayStep != null">
         <v-col>
           <step-container
