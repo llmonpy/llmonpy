@@ -30,6 +30,9 @@ STEP_TYPE_TOURNEY = "tourney"
 STEP_TYPE_CYCLE = "cycle"
 STEP_TYPE_PYPELINE = "pypeline"
 STEP_TYPE_JUDGE = "judge"
+STEP_TYPE_JURY = "jury"
+STEP_TYPE_RANKER = "ranker"
+STEP_TYPE_GENERATOR = "generator"
 
 STEP_STATUS_NO_STATUS = 0
 STEP_STATUS_SUCCESS = 200
@@ -170,7 +173,7 @@ class TraceLogRecorderInterface:
     def record_cost(self, cost):
         raise NotImplementedError()
 
-    def create_tourney_result(self, number_of_judges) -> TourneyResultInterface:
+    def create_tourney_result(self, number_of_judges, judge_step_name) -> TourneyResultInterface:
         raise NotImplementedError()
 
     def record_tourney_result(self, contestant_list: [LLMonPyStepOutput], tourney_result):

@@ -28,6 +28,7 @@ from mistralai.models.chat_completion import ChatMessage
 from nothingpy import Nothing
 from openai import OpenAI
 import google.generativeai as genai
+from together import Together
 
 from llmonpy_util import fix_common_json_encoding_errors
 from rate_llmiter import RateLlmiter
@@ -45,8 +46,9 @@ ANTHROPIC_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAUL
 OPENAI_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 DEEPSEEK_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 GEMINI_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
+TOGETHER_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 MISTRAL_RATE_LIMITER = RateLlmiter(1200, 20000000)
-
+TOGETHER_RATE_LIMITER = RateLlmiter(600, 20000000)
 
 def get_api_key(api_name, exit_on_error=True):
     key = os.environ.get(LLMONPY_API_PREFIX + api_name)
@@ -106,6 +108,9 @@ class LlmClient:
         # this should init API.
         pass
 
+    def get_model_name(self):
+        return self.model_name
+
     def prompt(self, prompt_text, system_prompt=Nothing, json_output=False, temp=0.0, max_output=None) -> LlmClientResponse:
         result = None
         self.rate_limiter.get_ticket()
@@ -155,6 +160,7 @@ class OpenAIModel(LlmClient):
         result = None
         response_text = Nothing
         response_format = "json_object" if json_output else "auto"
+        # retries just for json format errors
         for attempt in range(PROMPT_RETRIES):
             completion = self.client.chat.completions.create(
                 model=self.model_name,
@@ -225,6 +231,7 @@ class AnthropicModel(LlmClient):
             prompt_messages.append({"role": "assistant", "content": "{"})
         result = None
         response_text = Nothing
+        # retries just for json format errors
         for attempt in range(PROMPT_RETRIES):
             message = self.client.messages.create(
                 model=self.model_name,
@@ -268,6 +275,7 @@ class MistralLlmClient(LlmClient):
         ]
         result = None
         response_text = Nothing
+        # retries just for json format errors
         for attempt in range(PROMPT_RETRIES):
             response = self.client.chat(
                 model=self.model_name,
@@ -309,6 +317,7 @@ class GeminiModel(LlmClient):
         full_prompt = str(system_prompt) + "\n\n" + prompt_text
         result = None
         response_text = Nothing
+        # retries just for json format errors
         for attempt in range(PROMPT_RETRIES):
             model_response = prompt_client.generate_content(full_prompt,
                                             safety_settings={
@@ -334,6 +343,45 @@ class GeminiModel(LlmClient):
         return result
 
 
+class TogetherAIModel(LlmClient):
+    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0, price_per_output_token=0.0):
+        super().__init__(model_name, max_input, rate_limiter, thead_pool, price_per_input_token, price_per_output_token)
+        self.client = Nothing
+
+    def start(self):
+        key = get_api_key("TOGETHER_API_KEY")
+        self.client = Together(api_key=key)
+
+    def do_prompt(self, prompt_text, system_prompt="You are an expert at analyzing text.", json_output=False,
+                  temp=0.0, max_output=None):
+        system_prompt = system_prompt if system_prompt is not Nothing else ""
+        result = None
+        response_text = Nothing
+        full_prompt = str(system_prompt) + "\n\n" + prompt_text
+        # retries just for json format errors
+        for attempt in range(PROMPT_RETRIES):
+            try:
+                completion = self.client.completions.create(
+                    model=self.model_name,
+                    prompt=full_prompt,
+                    temperature=temp
+                )
+                response_text = completion.choices[0].text
+                response_dict = Nothing
+                if json_output:
+                    try:
+                        response_text = fix_common_json_encoding_errors(response_text)
+                        response_dict = json.loads(response_text)
+                    except Exception as e:
+                        continue
+                input_cost, output_cost = self.calculate_costs(completion.usage.prompt_tokens, completion.usage.completion_tokens)
+                result = LlmClientResponse(response_text, response_dict, input_cost, output_cost)
+            except Exception as e:
+                print("exception in TogetherAIModel: " + str(e))
+                raise e
+        if result is None and json_output:
+            raise LlmClientJSONFormatException(response_text)
+        return result
 
 #MIXTRAL tokenizer generates 20% more tokens than openai, so after reduce max_input to 80% of openai
 MISTRAL_7B = MistralLlmClient("open-mistral-7b", 12000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 0.25, 0.25)
@@ -342,6 +390,8 @@ MISTRAL_SMALL = MistralLlmClient("mistral-small", 24000, MISTRAL_RATE_LIMITER, M
 MISTRAL_8X7B = MistralLlmClient("open-mixtral-8x7b", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 0.7, 0.7)
 MISTRAL_LARGE = MistralLlmClient("mistral-large-latest", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 4.0, 12.0)
 
+TOGETHER_LLAMA3_70B = TogetherAIModel("meta-llama/Meta-Llama-3-70B", 8000, TOGETHER_RATE_LIMITER, TOGETHER_THREAD_POOL, 0.10, 0.10)
+TOGETHER_QWEN1_5_4B = TogetherAIModel("Qwen/Qwen1.5-4B", 32000, TOGETHER_RATE_LIMITER, TOGETHER_THREAD_POOL, 0.10, 0.10)
 GPT3_5 = OpenAIModel('gpt-3.5-turbo-0125', 15000, RateLlmiter(10000, 2000000), OPENAI_THREAD_POOL, 0.5, 1.5)
 GPT4 = OpenAIModel('gpt-4-turbo-2024-04-09', 120000, RateLlmiter(10000, 2000000), OPENAI_THREAD_POOL, 10.0, 30.0)
 GPT4o = OpenAIModel('gpt-4o', 120000, RateLlmiter(10000, 10000000), OPENAI_THREAD_POOL, 5.0, 15.0)
@@ -355,7 +405,8 @@ GEMINI_PRO = GeminiModel("gemini-1.5-pro", 120000, RateLlmiter(300, 2000000), GE
 ACTIVE_LLM_CLIENT_DICT = {}
 
 ALL_CLIENT_LIST = [GPT3_5, GPT4, GPT4o, ANTHROPIC_HAIKU, ANTHROPIC_SONNET, ANTHROPIC_OPUS, MISTRAL_7B, MISTRAL_8X22B,
-                     MISTRAL_SMALL, MISTRAL_8X7B, MISTRAL_LARGE, GEMINI_FLASH, GEMINI_PRO]
+                     MISTRAL_SMALL, MISTRAL_8X7B, MISTRAL_LARGE, GEMINI_FLASH, GEMINI_PRO, TOGETHER_QWEN1_5_4B,
+                   TOGETHER_LLAMA3_70B]
 
 def add_llm_clients(client_list):
     for client in client_list:

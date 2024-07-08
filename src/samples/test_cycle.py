@@ -36,12 +36,11 @@ class GenerateNameCycle(LLMonPypeline):
         client_list = [GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU]
         judge_client_list = [MISTRAL_LARGE, GEMINI_FLASH, MISTRAL_7B, MISTRAL_8X22B, ANTHROPIC_HAIKU]
 
-        first_round_generators = create_prompt_steps(NameIterativeRefinementTournamentPrompt(), first_round_client_list, [0.0])
-        generator_name = NameIterativeRefinementTournamentPrompt().get_step_name()
-        generators = create_prompt_steps(NameIterativeRefinementTournamentPrompt(), client_list, [0.0])
-        judge_list = create_prompt_steps(NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_name), judge_client_list)
-        cycle = RefinementCycle(NameIterativeRefinementTournamentPrompt().get_step_name(), generators, judge_list,
-                                     first_round_generators, 3, 3)
+        generator_prompt = NameIterativeRefinementTournamentPrompt()
+        judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt.get_step_name())
+        cycle = RefinementCycle(generator_prompt, client_list,[0.0], judgement_prompt,
+                                judge_client_list, [0.0], 3, 3,
+                                first_round_client_list,[0.0])
         result_list, _ = cycle.execute_step(recorder)
         for result in result_list:
             print("name:" + result.name)

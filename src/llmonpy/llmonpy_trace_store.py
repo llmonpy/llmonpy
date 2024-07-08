@@ -163,7 +163,6 @@ class JSONTable:
         with self.connection_pool.acquire() as connection:
             connection.executemany(statement_text, row_list)
             connection.commit()
-        print("rows inserted")
 
     def get_distinct_values(self, column_name):
         statement = io.StringIO()

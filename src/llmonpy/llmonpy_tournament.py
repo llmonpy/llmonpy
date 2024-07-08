@@ -19,44 +19,16 @@ import uuid
 
 from llmon_pypeline import LLMonPypeline
 from llmonpy_execute import do_llmonpy_parallel_step, do_llmonpy_step
-from prompt import LLMonPyPrompt
+from prompt import LLMonPyPrompt, create_prompt_steps
 from llmonpy_step import LLMonPyStep, LLMonPyStepOutput, TraceLogRecorderInterface, STEP_NAME_SEPARATOR, \
-    DictLLMonPyStepOutput, JudgedOutput, STEP_TYPE_TOURNEY, STEP_TYPE_CYCLE, STEP_TYPE_JUDGE
-
-
-def judge_output(contestant_list, judge_list, thread_pool, recorder):
-    start_index = 0
-    contest_list = []
-    number_of_contestants = len(contestant_list)
-    judge_step_name = judge_list[0].get_step_name()
-    tourney_result = recorder.create_tourney_result(len(judge_list), judge_step_name)
-    while start_index < (number_of_contestants - 1):
-        for i in range(start_index + 1, number_of_contestants):
-            contest_list.append(JudgedContest(contestant_list[start_index], contestant_list[i]))
-        start_index += 1
-    future_list = []
-    print("number of contests " + str(len(contest_list)))
-    for contest in contest_list:
-        future = thread_pool.submit(contest.determine_winner, recorder, judge_list)
-        future_list.append(future)
-    for future in concurrent.futures.as_completed(future_list):
-        try:
-            result = future.result()
-            tourney_result.add_contest_result(result.output_1.output_id, result.output_2.output_id,
-                                              result.winner.output_id, result.dissent_count)
-            result.winner.victory_count += 1
-        except Exception as e:
-            print(str(e))
-            pass
-    ordered_contestant_list = sorted(contestant_list, key=lambda x: x.victory_count, reverse=True)
-    recorder.record_tourney_result(ordered_contestant_list, tourney_result)
-    return ordered_contestant_list
+    DictLLMonPyStepOutput, JudgedOutput, STEP_TYPE_TOURNEY, STEP_TYPE_CYCLE, STEP_TYPE_JUDGE, STEP_TYPE_RANKER, \
+    STEP_TYPE_JURY
 
 
 class TournamentJudgePrompt(LLMonPyPrompt):
     class LLMonPyOutput(LLMonPyPrompt.LLMonPyOutput):
-        def __init__(self, winner):
-            self.winner = winner
+        def __init__(self, winner: int):
+            self.winner: int = winner
 
         def to_dict(self):
             result = copy.deepcopy(vars(self))
@@ -78,7 +50,7 @@ class TournamentJudgePrompt(LLMonPyPrompt):
     def get_step_type(self) -> str:
         return STEP_TYPE_JUDGE
 
-    def set_values(self, candidate_1, candidate_2):
+    def set_contestants(self, contestant_1, contestant_2):
         raise NotImplementedError()
 
     def output_from_dict(self, output_dict):
@@ -86,24 +58,50 @@ class TournamentJudgePrompt(LLMonPyPrompt):
         return result
 
 
-class JudgedContest:
-    def __init__(self, output_1, output_2):
+class CompareOutputStep(LLMonPyStep):
+    class LLMonPyOutput(LLMonPyPrompt.LLMonPyOutput):
+        def __init__(self, output_1_id: str, output_2_id: str, winner_id: str, dissent_count: int = 0):
+            self.output_1_id: str = output_1_id
+            self.output_2_id: str = output_2_id
+            self.winner_id: str = winner_id
+            self.dissent_count: int = dissent_count
+
+        def to_dict(self):
+            result = copy.deepcopy(vars(self))
+            return result
+
+    def __init__(self, output_1, output_2, judgement_prompt, judgement_model_list, judgement_temperature_list):
         self.output_1 = output_1
         self.output_2 = output_2
         self.winner = None
         self.dissent_count = 0
+        self.judgement_prompt = judgement_prompt
+        self.judgement_model_list = judgement_model_list
+        self.judgement_temperature_list = judgement_temperature_list
+        self.judge_list = create_prompt_steps(judgement_prompt, judgement_model_list, judgement_temperature_list)
 
-    def determine_winner(self, recorder, judge_list:[TournamentJudgePrompt]):
+    def get_step_type(self) -> str:
+        return STEP_TYPE_JURY
+
+    def get_input_dict(self, recorder: TraceLogRecorderInterface):
+        judgement_model_name_list = [model.get_model_name() for model in self.judgement_model_list]
+        result = {"output_1": self.output_1.to_dict(), "output_2": self.output_2.to_dict(),
+                  "judgement_prompt": self.judgement_prompt.get_prompt_text(),
+                  "judgement_model_list": judgement_model_name_list,
+                  "judgement_temperature_list": self.judgement_temperature_list}
+        return result
+
+    def execute_step(self, recorder):
         future_list = []
         contestant_1_victory_count = 0
         contestant_2_victory_count = 0
-        for judge in judge_list:
-            judge.get_prompt().set_values(self.output_1.step_output, self.output_2.step_output)
+        for judge in self.judge_list:
+            judge.get_prompt().set_contestants(self.output_1.step_output, self.output_2.step_output)
             future, step_recorder = do_llmonpy_parallel_step(judge, recorder)
             future_list.append(future)
         for future in concurrent.futures.as_completed(future_list):
             try:
-                output, step = future.result()
+                output, step_recorder = future.result()
                 if output.winner == 1:
                     contestant_1_victory_count += 1
                 else:
@@ -119,20 +117,99 @@ class JudgedContest:
             self.winner = self.output_2
             self.dissent_count = contestant_1_victory_count
             print("winner 2")
-        return self
+        result = CompareOutputStep.LLMonPyOutput(self.output_1.output_id, self.output_2.output_id, self.winner.output_id,
+                                                 self.dissent_count)
+        return result, recorder
+
+
+class RankOutputStep(LLMonPyStep):
+    def __init__(self, contestant_list: [JudgedOutput], judgement_prompt, judgement_model_list,
+                 judgement_temperature_list):
+        self.contestant_list = contestant_list
+        self.judgement_prompt = judgement_prompt
+        self.judgement_model_list = judgement_model_list
+        self.judgement_temperature_list = judgement_temperature_list
+
+    def get_step_type(self) -> str:
+        return STEP_TYPE_RANKER
+
+    def get_input_dict(self, recorder: TraceLogRecorderInterface):
+        contestant_dict_list = [contestant.to_dict() for contestant in self.contestant_list]
+        judgement_model_name_list = [model.get_model_name() for model in self.judgement_model_list]
+        result = {"contestant_list": contestant_dict_list,
+                  "judgement_prompt": self.judgement_prompt.get_prompt_text(),
+                  "judgement_model_list": judgement_model_name_list,
+                  "judgement_temperature_list": self.judgement_temperature_list}
+        return result
+
+    def execute_step(self, recorder: TraceLogRecorderInterface):
+        start_index = 0
+        contest_list = []
+        number_of_contestants = len(self.contestant_list)
+        judge_step_name = self.judgement_prompt.get_step_name()
+        number_of_judges = len(self.judgement_model_list) * len(self.judgement_temperature_list)
+        tourney_result = recorder.create_tourney_result(number_of_judges, judge_step_name)
+        while start_index < (number_of_contestants - 1):
+            for i in range(start_index + 1, number_of_contestants):
+                contest_list.append(CompareOutputStep(self.contestant_list[start_index], self.contestant_list[i],
+                                                      self.judgement_prompt, self.judgement_model_list,
+                                                      self.judgement_temperature_list))
+            start_index += 1
+        future_list = []
+        print("number of contests " + str(len(contest_list)))
+        for contest in contest_list:
+            future, step_recorder = do_llmonpy_parallel_step(contest, recorder)
+            future_list.append(future)
+        for future in concurrent.futures.as_completed(future_list):
+            try:
+                contest_result, contest_recorder = future.result()
+                tourney_result.add_contest_result(contest_result.output_1_id, contest_result.output_2_id,
+                                                  contest_result.winner_id, contest_result.dissent_count)
+                self.record_victory(contest_result.winner_id)
+            except Exception as e:
+                print(str(e))
+                pass
+        ordered_contestant_list = sorted(self.contestant_list, key=lambda x: x.victory_count, reverse=True)
+        recorder.record_tourney_result(ordered_contestant_list, tourney_result)
+        return ordered_contestant_list, recorder
+
+    def record_victory(self, winner_id):
+        for contestant in self.contestant_list:
+            if contestant.output_id == winner_id:
+                contestant.victory_count += 1
+                break
 
 
 class LLMonPyTournament(LLMonPypeline):
-    def __init__(self, contestant_list:[LLMonPyStep], judge_list:[LLMonPyStep]):
-        self.contestant_list = contestant_list
-        self.judge_list = judge_list
+    def __init__(self, generation_prompt, generation_model_list, generation_temperature_list, judgement_prompt,
+                 judgement_model_list, judgement_temperature_list):
+        self.generation_prompt = generation_prompt
+        self.generation_model_list = generation_model_list
+        self.generation_temperature_list = generation_temperature_list
+        self.judgement_prompt = judgement_prompt
+        self.judgement_model_list = judgement_model_list
+        self.judgement_temperature_list = judgement_temperature_list
+        self.contestant_list = create_prompt_steps(generation_prompt, generation_model_list,
+                                                   generation_temperature_list)
+        self.judge_list = create_prompt_steps(judgement_prompt, judgement_model_list, judgement_temperature_list)
 
     def get_step_type(self) -> str:
         return STEP_TYPE_TOURNEY
 
+    def get_input_dict(self, recorder: TraceLogRecorderInterface):
+        generation_model_name_list = [model.get_model_name() for model in self.generation_model_list]
+        judgement_model_name_list = [model.get_model_name() for model in self.judgement_model_list]
+        result = {"generation_prompt": self.generation_prompt.get_prompt_text(),
+                  "generation_model_list": generation_model_name_list,
+                  "generation_temperature_list": self.generation_temperature_list,
+                  "judgement_prompt": self.judgement_prompt.get_prompt_text(),
+                  "judgement_model_list": judgement_model_name_list,
+                  "judgement_temperature_list": self.judgement_temperature_list}
+        return result
+
     def execute_step(self, recorder: TraceLogRecorderInterface):
         future_list = []
-        output_list:[JudgedOutput] = []
+        output_list: [JudgedOutput] = []
         response_dict = {}
         for contestant in self.contestant_list:
             future, step_recorder = do_llmonpy_parallel_step(contestant, recorder)
@@ -152,38 +229,54 @@ class LLMonPyTournament(LLMonPypeline):
             except Exception as e:
                 print(str(e))
                 pass
-        ordered_output_list = judge_output(output_list, self.judge_list, self.get_thread_pool(), recorder)
+        rank_step = RankOutputStep(output_list, self.judgement_prompt, self.judgement_model_list,
+                                   self.judgement_temperature_list)
+        ordered_output_list, step_recorder = do_llmonpy_step(rank_step, recorder)
         return ordered_output_list, recorder
 
-    def output_no_score(self, ordered_output_list:[JudgedOutput], recorder):
+    def output_no_score(self, ordered_output_list: [JudgedOutput], recorder):
         ordered_output_list = [judged_output.step_output for judged_output in ordered_output_list]
         return ordered_output_list, recorder
 
-    def winner_only(self, ordered_output_list:[JudgedOutput], recorder):
+    def winner_only(self, ordered_output_list: [JudgedOutput], recorder):
         result = ordered_output_list[0].step_output
         return result, recorder
 
 
 class RefinementCycle(LLMonPypeline):
-    def __init__(self, generation_prompt_name, contestant_list:[LLMonPyStep], judge_list:[LLMonPyStep],
-                 first_round_contestant_list=None, number_of_examples:int = 1, max_cycles:int = 4):
-        self.generation_prompt_name = generation_prompt_name
-        self.contestant_list = contestant_list
-        self.first_round_contestant_list = first_round_contestant_list if first_round_contestant_list is not None else contestant_list
-        self.judge_list = judge_list
+    def __init__(self, generation_prompt, generation_model_list, generation_temperature_list, judgement_prompt,
+                 judgement_model_list, judgement_temperature_list,
+                 number_of_examples: int = 1, max_cycles: int = 4,
+                 first_round_client_list=None, first_round_temperature_list=None):
+        self.generation_prompt = generation_prompt
+        self.generation_prompt_name = self.generation_prompt.get_step_name()
+        self.generation_model_list = generation_model_list
+        self.generation_temperature_list = generation_temperature_list
+        self.judgement_prompt = judgement_prompt
+        self.judgement_model_list = judgement_model_list
+        self.judgement_temperature_list = judgement_temperature_list
+        self.first_round_client_list = first_round_client_list if first_round_client_list is not None else generation_model_list
+        self.first_round_temperature_list = first_round_temperature_list if first_round_temperature_list is not None else generation_temperature_list
+        self.judge_list = create_prompt_steps(judgement_prompt, judgement_model_list, judgement_temperature_list)
         self.number_of_examples = number_of_examples
         self.max_cycles = max_cycles
-        self.example_list:[JudgedOutput] = []
+        self.example_list: [JudgedOutput] = []
 
     def get_step_type(self) -> str:
         return STEP_TYPE_CYCLE
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        tournament = LLMonPyTournament(self.first_round_contestant_list, self.judge_list)
+        tournament = LLMonPyTournament(self.generation_prompt, self.first_round_client_list,
+                                       self.first_round_temperature_list,
+                                       self.judgement_prompt, self.judgement_model_list,
+                                       self.judgement_temperature_list)
         first_round_result_list, _ = do_llmonpy_step(tournament, recorder)
         self.update_example_list(first_round_result_list, recorder)
         for i in range(1, self.max_cycles):
-            tournament = LLMonPyTournament(self.contestant_list, self.judge_list)
+            tournament = LLMonPyTournament(self.generation_prompt, self.generation_model_list,
+                                           self.generation_temperature_list,
+                                           self.judgement_prompt, self.judgement_model_list,
+                                           self.judgement_temperature_list)
             recorder.set_step_examples(self.generation_prompt_name, self.get_example_output_list())
             result_list, _ = do_llmonpy_step(tournament, recorder)
             new_champion = self.update_example_list(result_list, recorder)
@@ -199,7 +292,7 @@ class RefinementCycle(LLMonPypeline):
         result = [judged_output.step_output for judged_output in self.example_list]
         return result
 
-    def update_example_list(self, result_list:[JudgedOutput], recorder):
+    def update_example_list(self, result_list: [JudgedOutput], recorder):
         new_champion = False
         best_list = result_list[0:self.number_of_examples]
         if len(self.example_list) == 0:
@@ -210,8 +303,9 @@ class RefinementCycle(LLMonPypeline):
             full_list = best_list + self.example_list
             for judged_output in full_list:
                 judged_output.reset_victory_count()
-            ordered_list = judge_output(full_list, self.judge_list, self.get_thread_pool(), recorder)
+            rank_step = RankOutputStep(full_list, self.judgement_prompt, self.judgement_model_list,
+                                       self.judgement_temperature_list)
+            ordered_list, step_recorder = do_llmonpy_step(rank_step, recorder)
             self.example_list = ordered_list[0:self.number_of_examples]
             new_champion = self.example_list[0].output_id != current_champion.output_id
         return new_champion
-

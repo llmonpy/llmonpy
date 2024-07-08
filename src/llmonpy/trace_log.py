@@ -128,7 +128,7 @@ class LLMonPyLogException(LLMonPyLogEvent):
         event_id = str(uuid.uuid4())
         event_time = datetime.now()
         stack_trace = traceback.format_exc()
-        result = LLMonPyLogException(event_id, trace_id, step_id, "exception", event_time, str(exception),
+        result = LLMonPyLogException(event_id, trace_id, step_id, event_time, str(exception),
                                      stack_trace)
         return result
 
@@ -390,7 +390,6 @@ class TraceLogRecorder (TraceLogRecorderInterface):
                                   step_index, step, self.trace_data.root_step_id,
                                   self.trace_data.root_step_name, self.trace_data.step_id, self.trace_data.step_name,
                                   client_info, input_dict, start_time)
-        print("created child recorder " + str(step_index))
         return result
 
     def record_exception(self, exception):

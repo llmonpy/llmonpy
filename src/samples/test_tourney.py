@@ -122,8 +122,8 @@ class NameIterativeRefinementTournamentPrompt(LLMonPyPrompt):
 
             Given these instructions, which do you think is the better name:
             
-            Candidate 1: {{ candidate_1_name }}
-            Candidate 2: {{ candidate_2_name }}
+            Candidate 1: {{ contestant_1_name }}
+            Candidate 2: {{ contestant_2_name }}
             
             Please reply with JSON in the form: {"winner": 1} or {"winner": 2}.  Do not include any other text in your 
             response.
@@ -135,12 +135,12 @@ class NameIterativeRefinementTournamentPrompt(LLMonPyPrompt):
 
         def __init__(self, name_of_step_being_judged):
             super().__init__(name_of_step_being_judged)
-            self.candidate_1_name = None
-            self.candidate_2_name = None
+            self.contestant_1_name = None
+            self.contestant_2_name = None
 
-        def set_values(self, candidate_1, candidate_2):
-            self.candidate_1_name = candidate_1.name
-            self.candidate_2_name = candidate_2.name
+        def set_contestants(self, contestant_1, contestant_2):
+            self.contestant_1_name = contestant_1.name
+            self.contestant_2_name = contestant_2.name
 
         def to_dict(self):
             result = copy.deepcopy(vars(self))
@@ -160,11 +160,10 @@ class GenerateNamePypeline(LLMonPypeline):
         client_list = [GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU,
                        ANTHROPIC_OPUS]
         judge_client_list = [MISTRAL_LARGE, GEMINI_FLASH, MISTRAL_7B, MISTRAL_8X22B, ANTHROPIC_HAIKU]
-        generators = create_prompt_steps(NameIterativeRefinementTournamentPrompt(), client_list, [0.0])
-        generator_name = NameIterativeRefinementTournamentPrompt().get_step_name()
-        judge_list = create_prompt_steps(NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_name), judge_client_list)
-        judge_step_name = judge_list[0].get_step_name()
-        tournament = LLMonPyTournament(generators, judge_list)
+        generator_prompt = NameIterativeRefinementTournamentPrompt()
+        judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt.get_step_name())
+        tournament = LLMonPyTournament(generator_prompt, client_list,[0.0], judgement_prompt,
+                                       judge_client_list, [0.0])
         result_list, _ = do_llmonpy_step(tournament, recorder)
         for result in result_list:
             print("name:" + result.step_output.name + " score: " + str(result.victory_count))

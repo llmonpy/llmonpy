@@ -16,7 +16,7 @@ import copy
 import time
 import uuid
 
-from llm_client import MISTRAL_7B
+from llm_client import MISTRAL_7B, TOGETHER_QWEN1_5_4B, TOGETHER_LLAMA3_70B
 from prompt import LLMonPyPrompt, LLMonPyPromptEvaluator
 from system_startup import system_startup, system_stop
 from trace_log import trace_log_service
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     try:
         trace_id = str(uuid.uuid4())
         print("Running TestLLMonPyPrompt")
-        step = LLMonPyPromptEvaluator(MISTRAL_7B, TestLLMonPyPrompt("Tom"))
+        step = LLMonPyPromptEvaluator(TOGETHER_QWEN1_5_4B, TestLLMonPyPrompt("Tom"))
         recorder = trace_log_service().create_root_recorder(trace_id, trace_id, None, step)
         result, _ = step.execute_step(recorder)
         recorder.finish_child_step(result)
