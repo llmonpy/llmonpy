@@ -360,25 +360,22 @@ class TogetherAIModel(LlmClient):
         full_prompt = str(system_prompt) + "\n\n" + prompt_text
         # retries just for json format errors
         for attempt in range(PROMPT_RETRIES):
-            try:
-                completion = self.client.completions.create(
-                    model=self.model_name,
-                    prompt=full_prompt,
-                    temperature=temp
-                )
-                response_text = completion.choices[0].text
-                response_dict = Nothing
-                if json_output:
-                    try:
-                        response_text = fix_common_json_encoding_errors(response_text)
-                        response_dict = json.loads(response_text)
-                    except Exception as e:
-                        continue
-                input_cost, output_cost = self.calculate_costs(completion.usage.prompt_tokens, completion.usage.completion_tokens)
-                result = LlmClientResponse(response_text, response_dict, input_cost, output_cost)
-            except Exception as e:
-                print("exception in TogetherAIModel: " + str(e))
-                raise e
+            completion = self.client.completions.create(
+                model=self.model_name,
+                prompt=full_prompt,
+                temperature=temp
+            )
+            response_text = completion.choices[0].text
+            response_dict = Nothing
+            if json_output:
+                try:
+                    response_text = fix_common_json_encoding_errors(response_text)
+                    response_dict = json.loads(response_text)
+                except Exception as e:
+                    print("JSON parsing error " + response_text)
+                    continue
+            input_cost, output_cost = self.calculate_costs(completion.usage.prompt_tokens, completion.usage.completion_tokens)
+            result = LlmClientResponse(response_text, response_dict, input_cost, output_cost)
         if result is None and json_output:
             raise LlmClientJSONFormatException(response_text)
         return result
@@ -390,8 +387,8 @@ MISTRAL_SMALL = MistralLlmClient("mistral-small", 24000, MISTRAL_RATE_LIMITER, M
 MISTRAL_8X7B = MistralLlmClient("open-mixtral-8x7b", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 0.7, 0.7)
 MISTRAL_LARGE = MistralLlmClient("mistral-large-latest", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 4.0, 12.0)
 
-TOGETHER_LLAMA3_70B = TogetherAIModel("meta-llama/Meta-Llama-3-70B", 8000, TOGETHER_RATE_LIMITER, TOGETHER_THREAD_POOL, 0.10, 0.10)
-TOGETHER_QWEN1_5_4B = TogetherAIModel("Qwen/Qwen1.5-4B", 32000, TOGETHER_RATE_LIMITER, TOGETHER_THREAD_POOL, 0.10, 0.10)
+TOGETHER_LLAMA3_70B = TogetherAIModel("meta-llama/Llama-3-70b-chat-hf", 8000, TOGETHER_RATE_LIMITER, TOGETHER_THREAD_POOL, 0.10, 0.10)
+TOGETHER_QWEN1_5_4B = TogetherAIModel("mistralai/Mistral-7B-Instruct-v0.3", 32000, TOGETHER_RATE_LIMITER, TOGETHER_THREAD_POOL, 0.10, 0.10)
 GPT3_5 = OpenAIModel('gpt-3.5-turbo-0125', 15000, RateLlmiter(10000, 2000000), OPENAI_THREAD_POOL, 0.5, 1.5)
 GPT4 = OpenAIModel('gpt-4-turbo-2024-04-09', 120000, RateLlmiter(10000, 2000000), OPENAI_THREAD_POOL, 10.0, 30.0)
 GPT4o = OpenAIModel('gpt-4o', 120000, RateLlmiter(10000, 10000000), OPENAI_THREAD_POOL, 5.0, 15.0)
@@ -408,6 +405,7 @@ ALL_CLIENT_LIST = [GPT3_5, GPT4, GPT4o, ANTHROPIC_HAIKU, ANTHROPIC_SONNET, ANTHR
                      MISTRAL_SMALL, MISTRAL_8X7B, MISTRAL_LARGE, GEMINI_FLASH, GEMINI_PRO, TOGETHER_QWEN1_5_4B,
                    TOGETHER_LLAMA3_70B]
 
+
 def add_llm_clients(client_list):
     for client in client_list:
         client.start()
@@ -419,9 +417,9 @@ def get_llm_client(model_name):
 
 
 if __name__ == "__main__":
-    add_llm_clients([MISTRAL_7B, MISTRAL_8X22B, MISTRAL_SMALL, MISTRAL_8X7B, MISTRAL_LARGE, GPT3_5, GPT4, GPT4o,
-                     ANTHROPIC_OPUS, ANTHROPIC_SONNET, ANTHROPIC_HAIKU, GEMINI_FLASH, GEMINI_PRO])
-#    add_llm_clients([GEMINI_FLASH, GEMINI_PRO])
+    #add_llm_clients([MISTRAL_7B, MISTRAL_8X22B, MISTRAL_SMALL, MISTRAL_8X7B, MISTRAL_LARGE, GPT3_5, GPT4, GPT4o,
+     #                ANTHROPIC_OPUS, ANTHROPIC_SONNET, ANTHROPIC_HAIKU, GEMINI_FLASH, GEMINI_PRO])
+    add_llm_clients([MISTRAL_7B])
 
     TEST_PROMPT = """
     This is a test of your ability to respond to a request with JSON.  Please respond with a JSON object in the following format:
@@ -433,7 +431,11 @@ if __name__ == "__main__":
     """
     for client in ACTIVE_LLM_CLIENT_DICT.values():
         print("Testing " + client.model_name)
-        response = client.prompt(TEST_PROMPT, json_output=True)
+        try:
+            response = client.prompt(TEST_PROMPT, json_output=True)
+        except Exception as e:
+            print("Exception: " + str(e))
+            continue
         print(str(response.response_dict) + " input cost: " + str(response.input_cost) + " output cost: " + str(response.output_cost))
         print("Prompt completed")
     print("All tests completed")
