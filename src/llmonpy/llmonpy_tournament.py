@@ -259,6 +259,10 @@ class LLMonPyTournament(LLMonPypeline):
         rank_step = RankOutputStep(output_list, self.judgement_prompt, self.judgement_model_list,
                                    self.judgement_temperature_list)
         ordered_output_list, step_recorder = do_llmonpy_step(rank_step, recorder)
+        try:
+            x = 1/0
+        except Exception as e:
+            recorder.record_exception(e)
         return ordered_output_list, recorder
 
     def output_no_score(self, ordered_output_list: [JudgedOutput], recorder):

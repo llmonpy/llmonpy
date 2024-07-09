@@ -1,5 +1,5 @@
 <template>
-  <v-card title="Trace List">
+  <v-card title="Trace List" class="ma-2"  variant="flat">
     <v-card-text>
       <v-select
         v-model="currentTraceId"

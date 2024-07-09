@@ -422,7 +422,7 @@ class TraceLogRecorder (TraceLogRecorderInterface):
         self.trace_data.end_time = end_time
         if isinstance(output_dict, list):
             dict_list = [output.to_dict() for output in output_dict]
-            list_output = {"list_output": dict_list}
+            list_output = {"output_list": dict_list}
             self.trace_data.output_dict = list_output
         else:
             output_dict = output_dict.to_dict() if output_dict is not None else None

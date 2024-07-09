@@ -1,5 +1,5 @@
 <template>
-  <v-card title="Qbawa List">
+  <v-card title="Coming Soon" class="ma-2"  variant="flat">
 
   </v-card>
 </template>

@@ -77,11 +77,17 @@ export class DisplayTrace {
 export class DisplayStep {
   constructor(step, parentStep, tourneyResults, componentName) {
     this.step = step;
-    this.displayName = step.step_name;
+    this.displayName = this.generateDisplayName(step.step_name);
     this.parentStep = parentStep;
     this.tourneyResults = tourneyResults;
     this.componentName = componentName;
     this.children = [];
+  }
+
+  generateDisplayName(fullName) {
+    const lastPeriod = fullName.lastIndexOf('.');
+    let result = fullName.substring(lastPeriod + 1);
+    return result;
   }
 
   addChild(child) {
@@ -136,3 +142,18 @@ export function LLMClientSettingsToString(settings) {
   }
   return result;
 }
+
+export function CalculateDuration(start_iso_8601_string, end_iso_8601_string) {
+  let startDate = new Date(start_iso_8601_string);
+  let endDate = new Date(end_iso_8601_string);
+  let duration = (endDate - startDate) / 1000; // seconds
+  console.log("duration:" + duration);
+  return duration;
+}
+
+/* cost by model,settings report
+ scan steps for prompts, store by step_id in map
+ scan steps for ranker, look at output_dict.output_list
+
+ */
+
