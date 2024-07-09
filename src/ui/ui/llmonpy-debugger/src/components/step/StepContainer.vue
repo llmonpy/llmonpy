@@ -1,7 +1,7 @@
 <template>
   <v-card density="compact" hover>
     <v-card-item>
-      <v-card-title style="font-size: 1.0rem" >
+      <v-card-title  >
         <v-row>
           <v-col cols="8" >
             <v-card-subtitle>
@@ -37,34 +37,58 @@
     <v-card-text>
       <v-row v-if="showErrors">
         <v-col>
-            <h4 class="ml-2 mt-4">Errors</h4>
-            <v-list :items="stepErrors">
-            </v-list>
+          <v-card variant="tonal" density="compact" color="red-accent-4">
+            <v-card-title style="font-size: 0.9rem">
+              Errors
+            </v-card-title>
+            <v-card-text>
+              <v-list density="compact" :items="stepErrors">
+              </v-list>
+            </v-card-text>
+          </v-card>
         </v-col>
       </v-row>
       <v-row v-if="showInput">
         <v-col>
-            <h3 class="ml-2 mt-4">Input</h3>
-            <vue-json-pretty class="ml-2" :data="stepInput"/>
+          <v-card variant="tonal" density="compact" color="primary">
+            <v-card-title style="font-size: 0.9rem">
+              Input
+            </v-card-title>
+            <v-card-text>
+              <vue-json-pretty class="ml-2" :data="stepInput"/>
+            </v-card-text>
+          </v-card>
         </v-col>
       </v-row>
       <v-row v-if="showOutput">
         <v-col>
-            <h4 class="ml-2 mt-4">Output</h4>
-            <vue-json-pretty class="ml-2" :data="stepOutput"/>
+          <v-card variant="tonal" density="compact" color="primary">
+            <v-card-title style="font-size: 0.9rem">
+              Output
+            </v-card-title>
+            <v-card-text>
+              <vue-json-pretty class="ml-2" :data="stepOutput"/>
+            </v-card-text>
+          </v-card>
         </v-col>
       </v-row>
       <v-row v-if="showLogs">
         <v-col>
-            <h4 class="ml-2 mt-4">Logs</h4>
-            <template v-if="stepEvents.length > 0">
-              <step-log
-                  :event-list="stepEvents">
-              </step-log>
-            </template>
-            <v-alert v-show="stepEvents.length == 0" type="info" class="mx-4 mt-1" density="compact">
-              Nothing Logged
-            </v-alert>
+            <v-card variant="tonal" density="compact" color="primary">
+            <v-card-title style="font-size: 0.9rem">
+              Logs
+            </v-card-title>
+            <v-card-text>
+              <template v-if="stepEvents.length > 0">
+                <step-log
+                    :event-list="stepEvents">
+                </step-log>
+              </template>
+              <v-alert v-show="stepEvents.length == 0" type="info" class="mx-4 mt-1" density="compact">
+                Nothing Logged
+              </v-alert>
+            </v-card-text>
+            </v-card>
         </v-col>
       </v-row>
     </v-card-text>
