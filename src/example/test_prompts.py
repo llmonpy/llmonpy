@@ -60,7 +60,7 @@ if __name__ == "__main__":
     try:
         trace_id = str(uuid.uuid4())
         print("Running TestLLMonPyPrompt")
-        step = LLMonPyPromptEvaluator(TOGETHER_QWEN1_5_4B, TestLLMonPyPrompt("Tom"))
+        step = LLMonPyPromptEvaluator(MISTRAL_7B, TestLLMonPyPrompt("Tom"))
         recorder = trace_log_service().create_root_recorder(trace_id, trace_id, None, step)
         result, _ = step.execute_step(recorder)
         recorder.finish_child_step(result)
