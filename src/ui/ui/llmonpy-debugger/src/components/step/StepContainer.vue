@@ -48,6 +48,23 @@
           </v-card>
         </v-col>
       </v-row>
+      <v-row v-if="showReport">
+        <v-col>
+          <v-card variant="tonal" density="compact" color="primary">
+            <v-card-title style="font-size: 0.9rem">
+              Cost Per Victory Report
+            </v-card-title>
+            <v-card-text>
+              <v-list density="compact">
+                <v-list-item v-for="report in stepModelReportList" :key="displayStep.step.step_id + report.fullName">
+                  <span>{{report.fullName}}: </span>
+                  <span class="font-weight-bold">${{report.getCostPerVictoryString()}}</span>
+                </v-list-item>
+              </v-list>
+            </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
       <v-row v-if="showInput">
         <v-col>
           <v-card variant="tonal" density="compact" color="primary">
@@ -106,7 +123,7 @@
 <script>
 
 import Prompt from "@/components/step/Prompt.vue";
-import {API, CalculateDuration, LLMClientSettingsToString} from "@/js/api";
+import {API, CalculateDuration, LLMClientSettingsToString, ModelReport} from "@/js/api";
 import VueJsonPretty from "vue-json-pretty";
 import 'vue-json-pretty/lib/styles.css';
 import StepLog from "@/components/step/StepLog.vue";
@@ -116,6 +133,7 @@ const SHOW_OUTPUT = "Output";
 const SHOW_LOGS = "Logs";
 const SHOW_ERRORS = "Errors";
 const SHOW_STEPS = "Steps";
+const SHOW_REPORT = "Report";
 
 export default {
   name: 'StepContainer',
@@ -125,6 +143,7 @@ export default {
       this.setup()
     },
     showList: function (newVal, oldVal) {
+      this.showReport = this.showList.includes(SHOW_REPORT);
       this.showInput = this.showList.includes(SHOW_INPUT);
       this.showOutput = this.showList.includes(SHOW_OUTPUT);
       this.showLogs = this.showList.includes(SHOW_LOGS);
@@ -137,6 +156,7 @@ export default {
   },
   props: ['displayStep'],
   data: () => ({
+    showReport: false,
     showInput: false,
     showOutput: false,
     showLogs: false,
@@ -151,10 +171,11 @@ export default {
     stepInput: null,
     stepErrors: null,
     stepEvents: [],
+    stepModelReportList: null,
     logsLoaded: false,
     loadingLogs: false,
     showList:[],
-    showOptionList: [SHOW_INPUT, SHOW_OUTPUT, SHOW_LOGS, SHOW_ERRORS, SHOW_STEPS],
+    showOptionList: [SHOW_REPORT, SHOW_INPUT, SHOW_OUTPUT, SHOW_LOGS, SHOW_ERRORS, SHOW_STEPS],
   }),
   methods: {
     setup() {
@@ -177,6 +198,10 @@ export default {
       } else {
         this.modelName = null;
         this.settingsString = null;
+      }
+      this.stepModelReportList = ModelReport.GenerateModelReportList(this.displayStep.children)
+      if ( this.stepModelReportList == null ) {
+        this.showOptionList = this.showOptionList.filter(item => item != SHOW_REPORT);
       }
       if ( this.displayStep.children == null || this.displayStep.children.length == 0 ) {
         this.showOptionList = this.showOptionList.filter(item => item != SHOW_STEPS);

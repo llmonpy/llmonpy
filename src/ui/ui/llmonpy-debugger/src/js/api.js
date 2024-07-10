@@ -125,6 +125,15 @@ export class DisplayStep {
     }
     return null;
   }
+
+  static FlattenStepList(flattendStepList, displayStepList) {
+    if (displayStepList != null ) {
+      for (let displayStep of displayStepList) {
+        flattendStepList.push(displayStep.step);
+        DisplayStep.FlattenStepList(flattendStepList, displayStep.children);
+      }
+    }
+  }
 }
 
 export function LLMClientSettingsToString(settings) {
@@ -151,9 +160,82 @@ export function CalculateDuration(start_iso_8601_string, end_iso_8601_string) {
   return duration;
 }
 
-/* cost by model,settings report
- scan steps for prompts, store by step_id in map
- scan steps for ranker, look at output_dict.output_list
+export class ModelReport {
+  constructor(modelInfo) {
+    this.fullName = ModelReport.GenerateFullName(modelInfo);
+    this.cost = 0;
+    this.victoryCount = 0;
+  }
 
- */
+  addVictoryCount(count, cost) {
+    this.victoryCount += count;
+    this.cost += cost;
+  }
+
+  getCostPerVictoryString() {
+    let result = "No Victories"
+    if (this.victory_count != 0) {
+      const resultNumber =  this.cost / this.victoryCount;
+      result = new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 5
+      }).format(resultNumber);
+    }
+    return result;
+  }
+
+  static GenerateFullName(modelInfo) {
+    const modelName = modelInfo.model_name;
+    const settingsString = LLMClientSettingsToString(modelInfo.client_settings_dict);
+    const result = modelName + " " + settingsString;
+    return result;
+  }
+
+  static GenerateModelReportList(displayStepList) {
+    let result = null;
+    if ( displayStepList != null && displayStepList.length > 0) {
+      const flattendStepList = [];
+      DisplayStep.FlattenStepList(flattendStepList, displayStepList);
+      let modelReportMap = new Map();
+      let stepIdMap = new Map();
+      for (let step of flattendStepList) {
+        stepIdMap.set(step.step_id, step);
+      }
+      for (let step of flattendStepList) {
+        if (step.step_type == "ranker") {
+          const outputList = step.output_dict.output_list;
+          for (const judgedOutput of outputList) {
+            const judgedStep = stepIdMap.get(judgedOutput.step_id);
+            if ( judgedStep != null) { // would be null if the parent step was a ranker step, generation happened elsewhere
+              const modelInfo = judgedOutput.llm_model_info;
+              let report = modelReportMap.get(ModelReport.GenerateFullName(modelInfo));
+              if (report == null) {
+                report = new ModelReport(modelInfo);
+                modelReportMap.set(report.fullName, report);
+              }
+              report.addVictoryCount(judgedOutput.victory_count, judgedStep.cost);
+            }
+          }
+        }
+      }
+      result = [];
+      for (let modelReport of modelReportMap.values()) {
+        if (modelReport.cost > 0) {
+          result.push(modelReport);
+        }
+      }
+      result.sort((a, b) => {
+        if (a.fullName < b.fullName) {
+          return -1;
+        }
+        if (a.fullName > b.fullName) {
+          return 1;
+        }
+        return 0;
+      });
+      result = result.length == 0 ? null : result;
+    }
+    return result;
+  }
+}
 
