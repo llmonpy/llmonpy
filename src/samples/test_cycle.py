@@ -17,7 +17,7 @@ import uuid
 import time
 
 from llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU, \
-    MISTRAL_8X22B, ANTHROPIC_OPUS, ALL_CLIENT_LIST
+    MISTRAL_8X22B, ANTHROPIC_OPUS, ALL_CLIENT_LIST, MISTRAL_SMALL
 from llmon_pypeline import LLMonPypeline
 from llmonpy_step import TraceLogRecorderInterface
 from llmonpy_tournament import RefinementCycle
@@ -34,13 +34,13 @@ class GenerateNameCycle(LLMonPypeline):
     def execute_step(self, recorder: TraceLogRecorderInterface):
         first_round_client_list = [GPT4o, MISTRAL_LARGE, GEMINI_PRO, ANTHROPIC_SONNET, ANTHROPIC_OPUS]
         client_list = [GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU]
-        judge_client_list = [MISTRAL_LARGE, GEMINI_FLASH, MISTRAL_7B, MISTRAL_8X22B, ANTHROPIC_HAIKU]
+        judge_client_list = [MISTRAL_SMALL, GEMINI_FLASH, MISTRAL_7B, MISTRAL_8X22B, ANTHROPIC_HAIKU]
 
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt.get_step_name())
-        cycle = RefinementCycle(generator_prompt, client_list,[0.0], judgement_prompt,
-                                judge_client_list, [0.0], 3, 3,
-                                first_round_client_list,[0.0])
+        cycle = RefinementCycle(generator_prompt, client_list,[0.0, 0.75], judgement_prompt,
+                                judge_client_list, [0.0], 6, 3,
+                                first_round_client_list,[0.0, 0.75])
         result_list, _ = cycle.execute_step(recorder)
         for result in result_list:
             print("name:" + result.name)

@@ -58,7 +58,8 @@ class NameIterativeRefinementTournamentPrompt(LLMonPyPrompt):
             7. "Deep Dream": a neural network visualization technique that generates surreal and dream-like images.
             
             {% if example_list  %}
-            Use these names as a starting point and try to improve on them. 
+            This is exciting! We have already generated some really good names and I would like you to build on
+            on our success.  Improve on the these names: 
                 {% for example in example_list %}
                     "{{ example.name }}"
                 {% endfor %}

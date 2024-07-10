@@ -9,7 +9,7 @@ const routes = [
     children: [
       {
         path: '',
-        name: 'Trace Viewer',
+        name: 'LLMonPy Trace Viewer',
         component: () => import('@/views/TraceViewer.vue'),
       },
       {
