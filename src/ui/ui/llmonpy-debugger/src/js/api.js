@@ -165,6 +165,7 @@ export class ModelReport {
     this.fullName = ModelReport.GenerateFullName(modelInfo);
     this.cost = 0;
     this.victoryCount = 0;
+    this.costPerVictory = Number.MAX_VALUE;
   }
 
   addVictoryCount(count, cost) {
@@ -172,14 +173,24 @@ export class ModelReport {
     this.cost += cost;
   }
 
+  finish() {
+    if (this.victoryCount > 0) {
+      this.costPerVictory = this.cost / this.victoryCount;
+    }
+  }
+
   getCostPerVictoryString() {
-    let result = "No Victories"
-    if (this.victory_count != 0) {
-      const resultNumber =  this.cost / this.victoryCount;
+    let result = ""
+    if (this.victoryCount != 0) {
       result = new Intl.NumberFormat('en-US', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 5
-      }).format(resultNumber);
+      }).format(this.costPerVictory);
+    } else {
+      result = new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 5
+      }).format(this.cost) + " (no victories)";
     }
     return result;
   }
@@ -221,14 +232,15 @@ export class ModelReport {
       result = [];
       for (let modelReport of modelReportMap.values()) {
         if (modelReport.cost > 0) {
+          modelReport.finish();
           result.push(modelReport);
         }
       }
       result.sort((a, b) => {
-        if (a.fullName < b.fullName) {
+        if (a.costPerVictory < b.costPerVictory) {
           return -1;
         }
-        if (a.fullName > b.fullName) {
+        if (a.costPerVictory > b.costPerVictory) {
           return 1;
         }
         return 0;

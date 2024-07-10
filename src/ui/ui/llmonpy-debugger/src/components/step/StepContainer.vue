@@ -59,6 +59,8 @@
                 <v-list-item v-for="report in stepModelReportList" :key="displayStep.step.step_id + report.fullName">
                   <span>{{report.fullName}}: </span>
                   <span class="font-weight-bold">${{report.getCostPerVictoryString()}}</span>
+                  <span>&nbsp; Victories: </span>
+                  <span>{{report.victoryCount}}</span>
                 </v-list-item>
               </v-list>
             </v-card-text>
