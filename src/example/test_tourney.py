@@ -16,7 +16,7 @@ import copy
 import uuid
 
 from llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU, \
-    MISTRAL_8X22B, ANTHROPIC_OPUS
+    MISTRAL_8X22B, ANTHROPIC_OPUS, filter_clients_that_didnt_start
 from llmon_pypeline import LLMonPypeline
 from llmonpy_execute import do_llmonpy_step
 from llmonpy_step import TraceLogRecorderInterface
@@ -158,9 +158,10 @@ class GenerateNamePypeline(LLMonPypeline):
         pass
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        client_list = [GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU,
-                       ANTHROPIC_OPUS]
-        judge_client_list = [MISTRAL_LARGE, GEMINI_FLASH, MISTRAL_7B, MISTRAL_8X22B, ANTHROPIC_HAIKU]
+        client_list = filter_clients_that_didnt_start([GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU,
+                       ANTHROPIC_OPUS])
+        judge_client_list = filter_clients_that_didnt_start([MISTRAL_LARGE, GEMINI_FLASH, MISTRAL_7B, MISTRAL_8X22B,
+                                                             ANTHROPIC_HAIKU])
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt.get_step_name())
         tournament = LLMonPyTournament(generator_prompt, client_list,[0.0], judgement_prompt,

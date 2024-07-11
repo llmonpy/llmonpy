@@ -50,13 +50,18 @@ TOGETHER_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT
 MISTRAL_RATE_LIMITER = RateLlmiter(1200, 20000000)
 TOGETHER_RATE_LIMITER = RateLlmiter(600, 20000000)
 
-def get_api_key(api_name, exit_on_error=True):
-    key = os.environ.get(LLMONPY_API_PREFIX + api_name)
+class LLMonPyNoKeyForApiException(Exception):
+    def __init__(self, api_key_name):
+        super().__init__("No API key found for model " + api_key_name)
+        self.api_key_name = api_key_name
+
+
+def get_api_key(api_key_name, exit_on_error=True):
+    key = os.environ.get(LLMONPY_API_PREFIX + api_key_name)
     if key is None:
-        key = os.environ.get(api_name)
+        key = os.environ.get(api_key_name)
     if key is None and exit_on_error:
-        print("API key not found for " + api_name)
-        exit(1)
+        raise LLMonPyNoKeyForApiException(api_key_name)
     return key
 
 
@@ -402,14 +407,33 @@ GEMINI_PRO = GeminiModel("gemini-1.5-pro", 120000, RateLlmiter(300, 2000000), GE
 ACTIVE_LLM_CLIENT_DICT = {}
 
 ALL_CLIENT_LIST = [GPT3_5, GPT4, GPT4o, ANTHROPIC_HAIKU, ANTHROPIC_SONNET, ANTHROPIC_OPUS, MISTRAL_7B, MISTRAL_8X22B,
-                     MISTRAL_SMALL, MISTRAL_8X7B, MISTRAL_LARGE, GEMINI_FLASH, GEMINI_PRO, TOGETHER_QWEN1_5_4B,
-                   TOGETHER_LLAMA3_70B]
+                     MISTRAL_SMALL, MISTRAL_8X7B, MISTRAL_LARGE, GEMINI_FLASH, GEMINI_PRO]
 
 
 def add_llm_clients(client_list):
+    clients_with_keys = []
+    missing_key_map = {}
     for client in client_list:
-        client.start()
-        ACTIVE_LLM_CLIENT_DICT[client.model_name] = client
+        try:
+            client.start()
+            ACTIVE_LLM_CLIENT_DICT[client.model_name] = client
+            clients_with_keys.append(client)
+        except LLMonPyNoKeyForApiException as key_exception:
+            missing_key_map[key_exception.api_key_name] = key_exception.api_key_name
+            continue
+    for key in missing_key_map:
+        print("No key found for " + key)
+    return clients_with_keys
+
+
+def filter_clients_that_didnt_start(client_list):
+    result = []
+    for client in client_list:
+        if client.model_name in ACTIVE_LLM_CLIENT_DICT:
+            result.append(client)
+        else:
+            print("Client " + client.model_name + " did not start")
+    return result
 
 
 def get_llm_client(model_name):

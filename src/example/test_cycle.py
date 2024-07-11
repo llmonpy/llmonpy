@@ -17,7 +17,7 @@ import uuid
 import time
 
 from llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU, \
-    MISTRAL_8X22B, ANTHROPIC_OPUS, ALL_CLIENT_LIST, MISTRAL_SMALL
+    MISTRAL_8X22B, ANTHROPIC_OPUS, MISTRAL_SMALL, filter_clients_that_didnt_start
 from llmon_pypeline import LLMonPypeline
 from llmonpy_step import TraceLogRecorderInterface
 from llmonpy_tournament import RefinementCycle
@@ -32,9 +32,12 @@ class GenerateNameCycle(LLMonPypeline):
         pass
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        first_round_client_list = [GPT4o, MISTRAL_LARGE, GEMINI_PRO, ANTHROPIC_SONNET, ANTHROPIC_OPUS]
-        client_list = [GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU]
-        judge_client_list = [MISTRAL_SMALL, GEMINI_FLASH, MISTRAL_7B, MISTRAL_8X22B, ANTHROPIC_HAIKU]
+        first_round_client_list = filter_clients_that_didnt_start([GPT4o, MISTRAL_LARGE, GEMINI_PRO, ANTHROPIC_SONNET,
+                                                                   ANTHROPIC_OPUS])
+        client_list = filter_clients_that_didnt_start([GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET,
+                                                       MISTRAL_7B, ANTHROPIC_HAIKU])
+        judge_client_list = filter_clients_that_didnt_start([MISTRAL_SMALL, GEMINI_FLASH, MISTRAL_7B, MISTRAL_8X22B,
+                                                             ANTHROPIC_HAIKU])
 
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt.get_step_name())

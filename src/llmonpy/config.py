@@ -32,8 +32,7 @@ class LLMonPyConfig:
     def __init__(self, data_directory=None,
                  client_list=ALL_CLIENT_LIST,
                  thread_pool_size=DEFAULT_THREAD_POOL_SIZE):
-        self.client_list = client_list
-        add_llm_clients(client_list)
+        self.client_list = add_llm_clients(client_list)
         self.thread_pool_size = thread_pool_size
         self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=self.thread_pool_size)
         self.data_directory = data_directory if data_directory else compute_default_data_directory()

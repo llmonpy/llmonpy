@@ -56,7 +56,7 @@
             </v-card-title>
             <v-card-text>
               <v-list density="compact">
-                <v-list-item v-for="report in stepModelReportList" :key="displayStep.step.step_id + report.fullName">
+                <v-list-item min-height="32" v-for="report in stepModelReportList" :key="displayStep.step.step_id + report.fullName">
                   <span>{{report.fullName}}: </span>
                   <span class="font-weight-bold">${{report.getCostPerVictoryString()}}</span>
                   <span>&nbsp; Victories: </span>
@@ -142,6 +142,7 @@ export default {
   components: {StepLog, Prompt, VueJsonPretty},
   watch: {
     displayStep: function (newVal, oldVal) {
+      this.reset();
       this.setup()
     },
     showList: function (newVal, oldVal) {
@@ -180,6 +181,12 @@ export default {
     showOptionList: [SHOW_REPORT, SHOW_INPUT, SHOW_OUTPUT, SHOW_LOGS, SHOW_ERRORS, SHOW_STEPS],
   }),
   methods: {
+    reset() {
+      this.showList = [];
+      this.stepInput = this.stepOutput = this.stepErrors = this.stepModelReportList = this.stepEvents = null;
+      this.logsLoaded = this.loadingLogs = false;
+      this.showReport = this.showInput = this.showOutput = this.showLogs = this.showErrors = this.showSteps = false;
+    },
     setup() {
       console.log("StepContainer: " + this.displayStep.step.step_id)
       this.cost = new Intl.NumberFormat('en-US', {
