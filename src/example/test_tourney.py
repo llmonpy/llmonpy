@@ -76,16 +76,10 @@ class NameIterativeRefinementTournamentPrompt(LLMonPyPrompt):
 
     def __init__(self):
         super().__init__()
-        self.example_list = None
 
     def to_dict(self):
-        self_copy = copy.deepcopy(vars(self))
-        if self.example_list is not None:
-            self_copy["example_list"] = [example.to_dict() for example in self.example_list]
-        return self_copy
-
-    def set_example_list(self, example_list):
-        self.example_list = example_list
+        result = copy.deepcopy(vars(self))
+        return result
 
     class LLMonPyOutput(LLMonPyPrompt.LLMonPyOutput):
         def __init__(self, name=None):
@@ -134,8 +128,8 @@ class NameIterativeRefinementTournamentPrompt(LLMonPyPrompt):
             """
         json_output = True
 
-        def __init__(self, name_of_step_being_judged):
-            super().__init__(name_of_step_being_judged)
+        def __init__(self, prompt_being_judged):
+            super().__init__(prompt_being_judged)
             self.contestant_1_name = None
             self.contestant_2_name = None
 
@@ -144,7 +138,7 @@ class NameIterativeRefinementTournamentPrompt(LLMonPyPrompt):
             self.contestant_2_name = contestant_2.name
 
         def to_dict(self):
-            result = copy.deepcopy(vars(self))
+            result = super().to_dict()
             return result
 
         @classmethod
@@ -163,7 +157,7 @@ class GenerateNamePypeline(LLMonPypeline):
         judge_client_list = filter_clients_that_didnt_start([MISTRAL_LARGE, GEMINI_FLASH, MISTRAL_7B, MISTRAL_8X22B,
                                                              ANTHROPIC_HAIKU])
         generator_prompt = NameIterativeRefinementTournamentPrompt()
-        judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt.get_step_name())
+        judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt)
         tournament = LLMonPyTournament(generator_prompt, client_list,[0.0], judgement_prompt,
                                        judge_client_list, [0.0])
         result_list, _ = do_llmonpy_step(tournament, recorder)

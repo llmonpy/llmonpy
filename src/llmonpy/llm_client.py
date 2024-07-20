@@ -397,6 +397,7 @@ TOGETHER_QWEN1_5_4B = TogetherAIModel("mistralai/Mistral-7B-Instruct-v0.3", 3200
 GPT3_5 = OpenAIModel('gpt-3.5-turbo-0125', 15000, RateLlmiter(10000, 2000000), OPENAI_THREAD_POOL, 0.5, 1.5)
 GPT4 = OpenAIModel('gpt-4-turbo-2024-04-09', 120000, RateLlmiter(10000, 2000000), OPENAI_THREAD_POOL, 10.0, 30.0)
 GPT4o = OpenAIModel('gpt-4o', 120000, RateLlmiter(10000, 10000000), OPENAI_THREAD_POOL, 5.0, 15.0)
+GPT4omini = OpenAIModel('gpt-4o-mini', 120000, RateLlmiter(10000, 10000000), OPENAI_THREAD_POOL, 0.15, 0.60)
 ANTHROPIC_OPUS = AnthropicModel("claude-3-opus-20240229", 180000, RateLlmiter(4000, 400000), ANTHROPIC_THREAD_POOL, 15.0, 75.0)
 ANTHROPIC_SONNET = AnthropicModel("claude-3-5-sonnet-20240620", 180000, RateLlmiter(4000, 400000), ANTHROPIC_THREAD_POOL, 3.0, 15.0)
 ANTHROPIC_HAIKU = AnthropicModel("claude-3-haiku-20240307", 180000, RateLlmiter(4000, 400000), ANTHROPIC_THREAD_POOL, 0.25, 1.25)

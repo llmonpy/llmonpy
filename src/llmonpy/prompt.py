@@ -54,6 +54,7 @@ class LLMonPyPrompt:
 
     def get_output_format(self):
         result = LLMONPY_OUTPUT_FORMAT_JSON if self.get_json_output() else LLMONPY_OUTPUT_FORMAT_TEXT
+        return result
 
     def get_step_name(self):
         class_obj = self.__class__
@@ -61,7 +62,8 @@ class LLMonPyPrompt:
         return result
 
     def to_dict(self):
-        pass
+        result = copy.deepcopy(vars(self))
+        return result
 
     def from_dict(self, dict):
         pass

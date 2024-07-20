@@ -39,8 +39,9 @@ class TournamentJudgePrompt(LLMonPyPrompt):
             result = TournamentJudgePrompt.LLMonPyOutput(**dictionary)
             return result
 
-    def __init__(self, name_of_step_being_judged):
-        self.name_of_step_being_judged = name_of_step_being_judged
+    def __init__(self, step_being_judged):
+        self.step_being_judged = step_being_judged
+        self.name_of_step_being_judged = step_being_judged.get_step_name()
 
     def get_step_name(self):
         result = (self.name_of_step_being_judged + STEP_NAME_SEPARATOR + self.__class__.__module__ + "."
@@ -55,6 +56,11 @@ class TournamentJudgePrompt(LLMonPyPrompt):
 
     def output_from_dict(self, output_dict):
         result = TournamentJudgePrompt.LLMonPyOutput.from_dict(output_dict)
+        return result
+
+    def to_dict(self):
+        result = copy.deepcopy(vars(self))
+        result["step_being_judged"] = self.step_being_judged.to_dict()
         return result
 
 

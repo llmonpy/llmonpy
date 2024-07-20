@@ -178,7 +178,7 @@ class LLMonPyLogPromptResponse(LLMonPyLogEvent):
 
 
 class ContestResult:
-    def __init__(self, contestant_one_output_id, contestant_two_output_id, winner_output_id, dissenting_judges=0):
+    def __init__(self, contestant_one_output_id, contestant_two_output_id, winner_output_id, dissenting_judges:int = 0):
         self.contestant_one_output_id = contestant_one_output_id
         self.contestant_two_output_id = contestant_two_output_id
         self.winner_output_id = winner_output_id
@@ -462,7 +462,6 @@ class TraceLogService:
         subclasses = LLMonPyLogEvent.__subclasses__()
         for subclass in subclasses:
             self.event_factory_dict[subclass.type_name] = subclass.from_dict
-        print("done")
 
     def event_from_dict(self, dict):
         event_type = dict["event_type"]
