@@ -25,9 +25,18 @@ from llmonpy_step import LLMonPyStepOutput, LLMONPY_OUTPUT_FORMAT_JSON, STEP_STA
     TraceLogRecorderInterface, TourneyResultInterface, JudgedOutput, LlmModelInfo
 from llmonpy_trace_store import SqliteLLMonPyTraceStore
 from system_services import system_services
-from system_startup import system_startup, system_stop
+from system_startup import llmonpy_start, llmonpy_stop
 
 NO_VARIATION_OF_TRACE_ID = "NO_VARIATION_OF_TRACE_ID"
+
+NO_OUTPUT_KEY = "no_output"
+NO_OUTPUT_VALUE = "no_output"
+NO_OUTPUT_DICT = {"output": "NO_OUTPUT_DICT"}
+
+
+def is_no_output_dict(output_dict):
+    result = output_dict is not None and output_dict == NO_OUTPUT_DICT
+    return result
 
 
 class TraceInfo:
@@ -332,6 +341,9 @@ class TraceLogRecorder (TraceLogRecorderInterface):
     def get_step_id(self):
         return self.trace_data.step_id
 
+    def get_trace_id(self):
+        return self.trace_data.trace_id
+
     def get_model_info(self) -> LlmModelInfo:
         return self.trace_data.llm_model_info
 
@@ -606,7 +618,7 @@ def trace_log_service() -> TraceLogService:
 
 
 if __name__ == "__main__":
-    system_startup()
+    llmonpy_start()
     print("Running Test trace_log.py")
     try:
         trace_list = trace_log_service().get_trace_list()
@@ -627,5 +639,5 @@ if __name__ == "__main__":
         stack_trace = traceback.format_exc()
         error_message = str(e) + " " + stack_trace
         print(error_message)
-    system_stop()
+    llmonpy_stop()
     exit(0)

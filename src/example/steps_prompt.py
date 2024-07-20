@@ -7,7 +7,7 @@ from jsony import jsony_to_json
 from llm_client import MISTRAL_7B
 from llmonpy_tournament import TournamentJudgePrompt
 from prompt import LLMonPyPrompt, LLMonPyPromptEvaluator
-from system_startup import system_startup, system_stop
+from system_startup import llmonpy_start, llmonpy_stop
 from trace_log import trace_log_service
 
 
@@ -205,11 +205,11 @@ def main():
 
 
 if __name__ == "__main__":
-    system_startup()
+    llmonpy_start()
     try:
         main()
     except Exception as e:
         print("exception:" + str(e))
     finally:
-        system_stop()
+        llmonpy_stop()
         exit(0)

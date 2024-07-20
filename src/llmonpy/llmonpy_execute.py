@@ -13,8 +13,10 @@
 #   COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 #   OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 import concurrent
+import uuid
 
 from llmonpy_step import LLMonPyStep, STEP_STATUS_FAILURE, TraceLogRecorderInterface
+from trace_log import trace_log_service
 
 
 class FutureStepList:
@@ -83,3 +85,14 @@ def do_step_list_no_wait(step_list:[LLMonPyStep], recorder: TraceLogRecorderInte
         future, child_recorder = do_llmonpy_parallel_step(step, recorder)
         result.add_future_step(FutureStepList.FutureStep(future, child_recorder))
     return result
+
+
+def run_step(step):
+    trace_id = str(uuid.uuid4())
+    result = None
+    try:
+        recorder = trace_log_service().create_root_recorder(trace_id, trace_id, None, step)
+        result, _ = step.execute_step(recorder)
+    finally:
+        recorder.finish_child_step(result)
+    return result, recorder

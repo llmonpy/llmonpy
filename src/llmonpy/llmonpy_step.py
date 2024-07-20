@@ -137,6 +137,9 @@ class TraceLogRecorderInterface:
     def get_step_id(self):
         raise NotImplementedError()
 
+    def get_trace_id(self):
+        raise NotImplementedError()
+
     def get_model_info(self) -> LlmModelInfo:
         raise NotImplementedError()
 

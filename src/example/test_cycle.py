@@ -19,10 +19,11 @@ import time
 from llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU, \
     MISTRAL_8X22B, ANTHROPIC_OPUS, MISTRAL_SMALL, filter_clients_that_didnt_start, GPT4omini
 from llmon_pypeline import LLMonPypeline
+from llmonpy_execute import run_step
 from llmonpy_step import TraceLogRecorderInterface
 from llmonpy_tournament import RefinementCycle
 from prompt import create_prompt_steps
-from system_startup import system_startup, system_stop
+from system_startup import llmonpy_start, llmonpy_stop
 from test_tourney import NameIterativeRefinementTournamentPrompt
 from trace_log import trace_log_service
 
@@ -49,15 +50,16 @@ class GenerateNameCycle(LLMonPypeline):
 
 
 if __name__ == "__main__":
-    system_startup()
+    llmonpy_start()
     print("Running Test Cycle")
-    step = GenerateNameCycle()
-    trace_id = str(uuid.uuid4())
-    recorder = trace_log_service().create_root_recorder(trace_id, trace_id, None, step)
-    result, _ = step.execute_step(recorder)
-    recorder.finish_child_step(result)
-    print(result.to_json())
-    system_stop()
-    exit(0)
+    try:
+        step = GenerateNameCycle()
+        result, recorder = run_step(step)
+        print(result.to_json())
+    except Exception as e:
+        print(str(e))
+    finally:
+        llmonpy_stop()
+        exit(0)
 
 

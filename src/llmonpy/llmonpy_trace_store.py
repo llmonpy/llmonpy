@@ -18,7 +18,7 @@ import os
 import sqlite3
 from queue import Queue
 
-from system_startup import system_startup, system_stop
+from system_startup import llmonpy_start, llmonpy_stop
 
 JSON_STRING_COLUMN_NAME = "json_string"
 TRACE_ID_COLUMN_NAME = "trace_id"

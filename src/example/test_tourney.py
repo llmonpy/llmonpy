@@ -18,11 +18,11 @@ import uuid
 from llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU, \
     MISTRAL_8X22B, ANTHROPIC_OPUS, filter_clients_that_didnt_start
 from llmon_pypeline import LLMonPypeline
-from llmonpy_execute import do_llmonpy_step
+from llmonpy_execute import do_llmonpy_step, run_step
 from llmonpy_step import TraceLogRecorderInterface
 from llmonpy_tournament import LLMonPyTournament, TournamentJudgePrompt
 from prompt import create_prompt_steps, LLMonPyPrompt
-from system_startup import system_startup, system_stop
+from system_startup import llmonpy_start, llmonpy_stop
 from trace_log import trace_log_service
 
 
@@ -167,14 +167,15 @@ class GenerateNamePypeline(LLMonPypeline):
 
 
 if __name__ == "__main__":
-    system_startup()
+    llmonpy_start()
     print("Running Test Tourney")
-    step = GenerateNamePypeline()
-    trace_id = str(uuid.uuid4())
-    recorder = trace_log_service().create_root_recorder(trace_id, trace_id, None, step)
-    result, _ = step.execute_step(recorder)
-    recorder.finish_child_step(result)
-    print(result.to_json())
-    system_stop()
-    exit(0)
+    try:
+        step = GenerateNamePypeline()
+        result, recorder = run_step(step)
+        print(result.to_json())
+    except Exception as e:
+        print(str(e))
+    finally:
+        llmonpy_stop()
+        exit(0)
 

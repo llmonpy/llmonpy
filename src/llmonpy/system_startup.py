@@ -14,7 +14,7 @@
 #   OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-def system_startup():
+def llmonpy_start():
     from system_services import init_system_services
     from config import init_llmonpy
     from trace_log import init_trace_log_service
@@ -24,6 +24,6 @@ def system_startup():
     init_trace_log_service()
 
 
-def system_stop():
+def llmonpy_stop():
     from system_services import system_services
     system_services().stop()

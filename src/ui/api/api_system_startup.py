@@ -16,11 +16,11 @@ from api_config import init_api
 
 
 def api_system_startup():
-    from system_startup import system_startup
-    system_startup()
+    from system_startup import llmonpy_start
+    llmonpy_start()
     init_api()
 
 
 def api_system_stop():
-    from system_startup import system_stop
-    system_stop()
+    from system_startup import llmonpy_stop
+    llmonpy_stop()

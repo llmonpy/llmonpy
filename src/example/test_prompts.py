@@ -14,11 +14,13 @@
 #   OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 import copy
 import time
+import traceback
 import uuid
 
 from llm_client import MISTRAL_7B, TOGETHER_QWEN1_5_4B, TOGETHER_LLAMA3_70B
+from llmonpy_execute import run_step
 from prompt import LLMonPyPrompt, LLMonPyPromptEvaluator
-from system_startup import system_startup, system_stop
+from system_startup import llmonpy_start, llmonpy_stop
 from trace_log import trace_log_service
 
 
@@ -56,14 +58,12 @@ class TestLLMonPyPrompt(LLMonPyPrompt):
         pass
 
 if __name__ == "__main__":
-    system_startup()
+    llmonpy_start()
     try:
-        trace_id = str(uuid.uuid4())
         print("Running TestLLMonPyPrompt")
         step = LLMonPyPromptEvaluator(MISTRAL_7B, TestLLMonPyPrompt("Tom"))
-        recorder = trace_log_service().create_root_recorder(trace_id, trace_id, None, step)
-        result, _ = step.execute_step(recorder)
-        recorder.finish_child_step(result)
+        result, recorder = run_step(step)
+        trace_id = recorder.get_trace_id()
         print(result.to_json())
         time.sleep(6)
         step_list = trace_log_service().get_steps_for_trace(trace_id)
@@ -74,7 +74,9 @@ if __name__ == "__main__":
             for log in log_list:
                 print(log.to_json())
     except Exception as e:
+        stack_trace = traceback.format_exc()
+        print(stack_trace)
         print(str(e))
     finally:
-        system_stop()
+        llmonpy_stop()
         exit(0)
