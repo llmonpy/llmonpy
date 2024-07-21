@@ -1,7 +1,7 @@
 <template>
   <template v-for="event in eventList">
     <v-card variant="flat">
-      <v-card-text>
+      <v-card-text >
         <template v-if="event.message">
           <span>{{ event.message }}</span>
         </template>
@@ -17,16 +17,16 @@
         </template>
         <template v-if="event.prompt_template">
           <span class="font-weight-bold">Prompt Template: </span>
-          <span>{{ event.prompt_template }}</span>
+          <pre style="overflow-x: scroll">{{ event.prompt_template }}</pre>
         </template>
         <template v-if="event.prompt_text">
           <div>
             <span class="font-weight-bold">Prompt Text: </span>
-            <span>{{ event.prompt_text }}</span>
+            <pre style="overflow-x: scroll">{{ event.prompt_text }}</pre>
           </div>
           <div class="mt-2">
             <span class="font-weight-bold">Response Text: </span>
-            <span>{{ event.response_text }}</span>
+            <pre style="overflow-x: scroll">{{ event.response_text }}</pre>
           </div>
         </template>
       </v-card-text>

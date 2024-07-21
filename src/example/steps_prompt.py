@@ -4,8 +4,12 @@ import json
 import uuid
 
 from jsony import jsony_to_json
-from llm_client import MISTRAL_7B
-from llmonpy_tournament import TournamentJudgePrompt
+from llm_client import MISTRAL_7B, filter_clients_that_didnt_start, GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, \
+    ANTHROPIC_SONNET, ANTHROPIC_HAIKU, MISTRAL_8X22B, GPT4omini
+from llmon_pypeline import LLMonPypeline
+from llmonpy_execute import do_llmonpy_step, run_step
+from llmonpy_step import TraceLogRecorderInterface
+from llmonpy_tournament import TournamentJudgePrompt, LLMonPyTournament, AdaptiveICLCycle
 from prompt import LLMonPyPrompt, LLMonPyPromptEvaluator
 from system_startup import llmonpy_start, llmonpy_stop
 from trace_log import trace_log_service
@@ -107,10 +111,12 @@ class GenerateProjectSteps(LLMonPyPrompt):
             
             ## Evaluation of step list
             You should consider the following when evaluating each step:
-            1. The project only covers writing the code.  No step should involve product or project management, marketing, or any other non-coding task.
-            2. Each step should build on prior steps and not require steps that come later in the list.
-            3. Each step should describe code that will be written in that step that will get you closer to the final code. 
-            4. The steps should be as small as you can make them, but "complete" in the sense that they do compile and run.
+            1. The project only covers writing the code.  No step should involve product or project management, 
+            marketing, or any other non-coding task.
+            2. Each step must build on prior steps and not require steps that come later in the list.
+            3. Each step must describe code that will be written in that step that will get you closer to the final code. 
+            4. The steps must be as small as you can make them, but "complete" in the sense that they do compile and run.
+            5. The steps must implement all the features from the project description.
             
             ## Contestant 1
             The steps from contestant 1 are:
@@ -130,9 +136,9 @@ class GenerateProjectSteps(LLMonPyPrompt):
             """
         json_output = True
 
-        def __init__(self, name_of_step_being_judged, project_description):
-            super().__init__(name_of_step_being_judged)
-            self.project_description = project_description
+        def __init__(self, step_being_judged):
+            super().__init__(step_being_judged)
+            self.project_description = step_being_judged.project_description
             self.contestant_1_step_list = None
             self.contestant_2_step_list = None
 
@@ -141,7 +147,7 @@ class GenerateProjectSteps(LLMonPyPrompt):
             self.contestant_2_step_list = contestant_2.step_list
 
         def to_dict(self):
-            result = copy.deepcopy(vars(self))
+            result = super().to_dict()
             if self.contestant_1_step_list is not None:
                 result["contestant_1_step_list"] = [step.to_dict() for step in self.contestant_1_step_list]
             if self.contestant_2_step_list is not None:
@@ -160,22 +166,65 @@ class GenerateProjectSteps(LLMonPyPrompt):
             return result
 
 
+class GenerateProjectStepsTourney(LLMonPypeline):
+    def __init__(self, project_description, starting_point, test_case):
+        super().__init__()
+        self.project_description = project_description
+        self.starting_point = starting_point
+        self.test_case = test_case
+
+    def execute_step(self, recorder: TraceLogRecorderInterface):
+        client_list = filter_clients_that_didnt_start([GPT4o, GPT4omini, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET,
+                                                       MISTRAL_7B, ANTHROPIC_HAIKU])
+        judge_client_list = filter_clients_that_didnt_start([GPT4omini, GEMINI_FLASH, MISTRAL_7B, MISTRAL_8X22B,
+                                                             ANTHROPIC_HAIKU])
+        generator_prompt = GenerateProjectSteps(self.project_description, self.starting_point, self.test_case)
+        judgement_prompt = GenerateProjectSteps.JudgePrompt(generator_prompt)
+        tournament = LLMonPyTournament(generator_prompt, client_list,[0.0], judgement_prompt,
+                                       judge_client_list, [0.0])
+        result_list, _ = do_llmonpy_step(tournament, recorder)
+        return result_list[0].step_output, recorder
+
+
+class GenerateProjectStepsCycle(LLMonPypeline):
+    def __init__(self, project_description, starting_point, test_case):
+        super().__init__()
+        self.project_description = project_description
+        self.starting_point = starting_point
+        self.test_case = test_case
+
+    def execute_step(self, recorder: TraceLogRecorderInterface):
+        client_list = filter_clients_that_didnt_start([GPT4o, GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET,
+                                                       MISTRAL_7B, ANTHROPIC_HAIKU])
+        judge_client_list = filter_clients_that_didnt_start([GPT4omini, GEMINI_FLASH, MISTRAL_7B, MISTRAL_8X22B,
+                                                             ANTHROPIC_HAIKU])
+        generator_prompt = GenerateProjectSteps(self.project_description, self.starting_point, self.test_case)
+        judgement_prompt = GenerateProjectSteps.JudgePrompt(generator_prompt)
+        cycle = AdaptiveICLCycle(generator_prompt, client_list, [0.0, 0.5], judgement_prompt,
+                                 judge_client_list, [0.0], 5, 3)
+        result_list, _ = cycle.execute_step(recorder)
+        return result_list[0], recorder
+
+
 def run_prompt(project_description, starting_point, test_case):
-    trace_id = str(uuid.uuid4())
     print("run prompt")
     step = LLMonPyPromptEvaluator(MISTRAL_7B, GenerateProjectSteps(project_description, starting_point, test_case))
-    recorder = trace_log_service().create_root_recorder(trace_id, trace_id, None, step)
-    result, _ = step.execute_step(recorder)
-    recorder.finish_child_step(result)
+    result, recorder = run_step(step)
     print(result.to_json())
 
 
-def run_tourney():
+def run_tourney(project_description, starting_point, test_case):
     print("Running tourney...")
+    step = GenerateProjectStepsTourney(project_description, starting_point, test_case)
+    result, recorder = run_step(step)
+    print(result.to_json())
 
 
-def run_cycle():
+def run_cycle(project_description, starting_point, test_case):
     print("Running cycle...")
+    step = GenerateProjectStepsCycle(project_description, starting_point, test_case)
+    result, recorder = run_step(step)
+    print(result.to_json())
 
 
 def main():
@@ -183,9 +232,7 @@ def main():
     parser.add_argument('function', choices=['prompt', 'tourney', 'cycle'],
                         help='The function to run.')
     parser.add_argument('filename', help='The name of the file to read.')
-
     args = parser.parse_args()
-
     try:
         with open(args.filename, 'r') as file:
             file_content = file.read()
@@ -199,9 +246,11 @@ def main():
         run_prompt(project_description=json_input["project_description"], starting_point=json_input["starting_point"],
                    test_case=json_input["test_case"])
     elif args.function == 'tourney':
-        run_tourney()
+        run_tourney(project_description=json_input["project_description"], starting_point=json_input["starting_point"],
+                   test_case=json_input["test_case"])
     elif args.function == 'cycle':
-        run_cycle()
+        run_cycle(project_description=json_input["project_description"], starting_point=json_input["starting_point"],
+                   test_case=json_input["test_case"])
 
 
 if __name__ == "__main__":

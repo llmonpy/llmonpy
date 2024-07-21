@@ -276,7 +276,7 @@ class LLMonPyTournament(LLMonPypeline):
         return result, recorder
 
 
-class RefinementCycle(LLMonPypeline):
+class AdaptiveICLCycle(LLMonPypeline):
     def __init__(self, generation_prompt, generation_model_list, generation_temperature_list, judgement_prompt,
                  judgement_model_list, judgement_temperature_list,
                  number_of_examples: int = 1, max_cycles: int = 4,
@@ -323,6 +323,7 @@ class RefinementCycle(LLMonPypeline):
 
     def get_example_output_list(self):
         result = [judged_output.step_output for judged_output in self.example_list]
+        result = result[::-1]
         return result
 
     def update_example_list(self, result_list: [JudgedOutput], recorder):

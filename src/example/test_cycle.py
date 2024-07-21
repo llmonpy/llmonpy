@@ -21,7 +21,7 @@ from llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC
 from llmon_pypeline import LLMonPypeline
 from llmonpy_execute import run_step
 from llmonpy_step import TraceLogRecorderInterface
-from llmonpy_tournament import RefinementCycle
+from llmonpy_tournament import AdaptiveICLCycle
 from prompt import create_prompt_steps
 from system_startup import llmonpy_start, llmonpy_stop
 from test_tourney import NameIterativeRefinementTournamentPrompt
@@ -41,8 +41,8 @@ class GenerateNameCycle(LLMonPypeline):
                                                              ANTHROPIC_HAIKU])
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt)
-        cycle = RefinementCycle(generator_prompt, client_list,[0.0, 0.75], judgement_prompt,
-                                judge_client_list, [0.0], 5, 3)
+        cycle = AdaptiveICLCycle(generator_prompt, client_list, [0.0, 0.75], judgement_prompt,
+                                 judge_client_list, [0.0], 5, 3)
         result_list, _ = cycle.execute_step(recorder)
         for result in result_list:
             print("name:" + result.name)
