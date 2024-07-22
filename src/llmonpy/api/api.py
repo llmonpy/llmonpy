@@ -29,23 +29,23 @@ STEP_ID_PARAM = "step_id"
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def catch_all(path):
-    return send_from_directory("static", "index.html")
+    return send_from_directory("llmonpy/api/static", "index.html")
 
 
 @app.route('/assets/<path:path>')
 def serve_static(path):
     path = "assets/" + path
-    return send_from_directory('static', path)
+    return send_from_directory('llmonpy/api/static', path)
 
 
 @app.route("/qbawa")
 def serve_datasets():
-    return send_from_directory("static", "index.html")
+    return send_from_directory("llmonpy/api/static", "index.html")
 
 
 @app.route("/favicon.ico")
 def serve_favicon():
-    return send_from_directory("static", "favicon.ico")
+    return send_from_directory("llmonpy/api/static", "favicon.ico")
 
 
 @app.route('/api/hello_world')

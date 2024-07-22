@@ -9,4 +9,3 @@ pip install --upgrade sqlalchemy
 pip install --upgrade flask
 pip install --upgrade flask_cors
 pip install --upgrade together
-pip install --upgrade setuptools

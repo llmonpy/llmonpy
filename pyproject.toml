@@ -5,9 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "llmonpy"
 version = "0.1.0"
-authors = [
-  { name="Tom Burns", email="public@llmonpy.ai" },
-]
+authors = [{ name="Tom Burns", email="public@llmonpy.ai" }]
 description = "AI pipeline framework for Python."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -19,14 +17,12 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
-# [project.scripts]
-# your_command = "your_package.main:main_function"
+[project.scripts]
+llmonpy = "llmonpy.llmonpy_cli:llmonpy_cli"
 
-[tool.setuptools]
-packages = ["llmonpy"]
-
-[tool.setuptools.scripts]
-your_script = "scripts/llmonpy"
+# Find packages in the src directory
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [project.urls]
 Homepage = "https://github.com/llmonpy/llmonpy"
