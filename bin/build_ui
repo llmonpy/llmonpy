@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# Navigating to t3000 directory
+cd src/ui/web/llmonpy-debugger
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to change directory to llmonpy-debugger."
+    exit 1
+fi
+
+# Executing vite build
+node_modules/.bin/vite build
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to execute 'vite build'."
+    exit 1
+fi
+
+# Changing to api directory
+cd ../../api
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to change directory to api. "
+    exit 1
+fi
+
+# Deleting files in static directory
+if [ -d "static" ]; then
+    rm -rf static/*
+fi
+
+# Copying files from ../llmonpy-debugger/dist to static directory
+cp -R ../web/llmonpy-debugger/dist/* static/
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to copy files to static directory."
+    exit 1
+fi
+
+# Committing changes to GitHub
+git add static
+
+
+echo "Operation completed successfully."

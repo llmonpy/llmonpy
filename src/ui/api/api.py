@@ -13,7 +13,7 @@
 #  COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 #  OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-from flask import jsonify, request
+from flask import jsonify, request, send_from_directory
 
 from api_app import app
 from api_config import api_config
@@ -23,6 +23,30 @@ from trace_log import trace_log_service
 TRACE_ID_PARAM = "trace_id"
 STEP_NAME_PARAM = "step_name"
 STEP_ID_PARAM = "step_id"
+
+
+# make default request resolve to index.html, necessary for vuejs router to work well.  Implies no 404 possible
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def catch_all(path):
+    return send_from_directory("static", "index.html")
+
+
+@app.route('/assets/<path:path>')
+def serve_static(path):
+    path = "assets/" + path
+    return send_from_directory('static', path)
+
+
+@app.route("/qbawa")
+def serve_datasets():
+    return send_from_directory("static", "index.html")
+
+
+@app.route("/favicon.ico")
+def serve_favicon():
+    return send_from_directory("static", "favicon.ico")
+
 
 @app.route('/api/hello_world')
 def test_json_api():

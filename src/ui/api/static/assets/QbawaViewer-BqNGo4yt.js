@@ -1,0 +1,1 @@
+import{_ as a}from"./VAvatar-DDYaxdrs.js";import{a as o}from"./VCard-0y438dNU.js";import{u as t,t as e}from"./index-Bp1M9JzD.js";const r={name:"QbawaViewer",components:{},props:[],data:()=>({}),methods:{},created(){},computed:{}};function s(c,n,p,m,i,d){return e(),t(o,{title:"Coming Soon",class:"ma-2",variant:"flat"})}const u=a(r,[["render",s]]);export{u as default};

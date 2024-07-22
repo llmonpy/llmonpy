@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llmonpy"
+version = "0.1.0"
+authors = [
+  { name="Tom Burns", email="public@llmonpy.ai" },
+]
+description = "AI pipeline framework for Python."
+readme = "README.md"
+license = { file = "LICENSE" }
+#dependencies = ["required_package1", "required_package2"]
+requires-python = ">=3.6"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+# [project.scripts]
+# your_command = "your_package.main:main_function"
+
+[tool.setuptools]
+packages = ["llmonpy"]
+
+[tool.setuptools.scripts]
+your_script = "scripts/llmonpy"
+
+[project.urls]
+Homepage = "https://github.com/llmonpy/llmonpy"
+Issues = "https://github.com/llmonpy/llmonpy/issues"
