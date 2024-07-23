@@ -5,4 +5,4 @@ of the time. LLMonPy makes it easy to use multiple language models (LLMs) to gen
 responses, and to use the best responses as examples to improve the quality of future responses.  It also generates 
 question/best answer/worse answer (QBaWa) data that can be used for training models.
 
-[LLMonPy README](README)
+[LLMonPy README](https://github.com/llmonpy/llmonpy/blob/main/README.md)
