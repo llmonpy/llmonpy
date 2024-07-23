@@ -22,7 +22,7 @@ from llmonpy.llmonpy_execute import run_step
 from llmonpy.llmonpy_prompt import LLMonPyPrompt, LLMonPyPromptEvaluator
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
 from llmonpy.trace_log import trace_log_service
-from llmonpy_step import LLMONPY_OUTPUT_FORMAT_JSON
+from llmonpy.llmonpy_step import LLMONPY_OUTPUT_FORMAT_JSON
 
 
 class TestLLMonPyPrompt(LLMonPyPrompt):
