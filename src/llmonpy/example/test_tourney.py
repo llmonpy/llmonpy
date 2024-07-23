@@ -15,8 +15,9 @@
 import copy
 import uuid
 
-from llmonpy.llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU, \
-    MISTRAL_8X22B, ANTHROPIC_OPUS, filter_clients_that_didnt_start
+from llmonpy.llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, \
+    ANTHROPIC_HAIKU, \
+    MISTRAL_8X22B, ANTHROPIC_OPUS, filter_clients_that_didnt_start, GPT4omini, MISTRAL_SMALL
 from llmonpy.llmon_pypeline import LLMonPypeline
 from llmonpy.llmonpy_execute import do_llmonpy_step, run_step
 from llmonpy.llmonpy_step import TraceLogRecorderInterface
@@ -37,6 +38,8 @@ class NameIterativeRefinementTournamentPrompt(LLMonPyPrompt):
             pick a winner of the 2nd round.  Then the judges are used again to compare the winner of the first round 
             against the winner of the 2nd round.  If the 2nd round wins, the cycle is repeated but with the winner of 
             the 2nd round as the example of a good response. This continues as long as the responses keep getting better.
+            This is an example of "adaptive in-context learning (ICL)".  ICL is also called "few-shot prompting". AdaptiveICL
+            does not usually include multiple rounds of tournaments.
             
             I've found that creating the right name matters a lot.  For example, there was a process to compare 2 or 
             more approaches of responding to an LLM requests.  I called it an "Exploratory Trial".  No one paid any 
@@ -151,13 +154,13 @@ class GenerateNamePypeline(LLMonPypeline):
         pass
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        client_list = filter_clients_that_didnt_start([GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU,
-                       ANTHROPIC_OPUS])
-        judge_client_list = filter_clients_that_didnt_start([MISTRAL_LARGE, GEMINI_FLASH, MISTRAL_7B, MISTRAL_8X22B,
+        client_list = filter_clients_that_didnt_start([GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B,
+                                                       ANTHROPIC_HAIKU])
+        judge_client_list = filter_clients_that_didnt_start([GPT4omini, GEMINI_FLASH, MISTRAL_7B, MISTRAL_SMALL,
                                                              ANTHROPIC_HAIKU])
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt)
-        tournament = LLMonPyTournament(generator_prompt, client_list,[0.0], judgement_prompt,
+        tournament = LLMonPyTournament(generator_prompt, client_list,[0.0, 0.5], judgement_prompt,
                                        judge_client_list, [0.0])
         result_list, _ = do_llmonpy_step(tournament, recorder)
         for result in result_list:

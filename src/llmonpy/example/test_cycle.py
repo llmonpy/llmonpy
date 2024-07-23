@@ -31,9 +31,7 @@ class GenerateNameCycle(LLMonPypeline):
         pass
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        first_round_client_list = filter_clients_that_didnt_start([GPT4o, MISTRAL_LARGE, GEMINI_PRO, ANTHROPIC_SONNET,
-                                                                   ANTHROPIC_OPUS])
-        client_list = filter_clients_that_didnt_start([GPT4o, GPT4omini, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET,
+        client_list = filter_clients_that_didnt_start([GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET,
                                                        MISTRAL_7B, ANTHROPIC_HAIKU])
         judge_client_list = filter_clients_that_didnt_start([MISTRAL_SMALL, GEMINI_FLASH, MISTRAL_7B, GPT4omini,
                                                              ANTHROPIC_HAIKU])

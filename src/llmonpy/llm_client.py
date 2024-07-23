@@ -427,6 +427,12 @@ def add_llm_clients(client_list):
     return clients_with_keys
 
 
+def get_active_llm_clients():
+    result = list(ACTIVE_LLM_CLIENT_DICT.values())
+    result.sort(key=lambda client: client.model_name)
+    return result
+
+
 def filter_clients_that_didnt_start(client_list):
     result = []
     for client in client_list:
