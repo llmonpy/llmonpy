@@ -3,7 +3,7 @@ import argparse
 from llmonpy.llm_client import get_active_llm_clients, MISTRAL_7B
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
 from llmonpy.llmonpy_execute import run_step
-from llmonpy.prompt import LLMonPyPromptEvaluator
+from llmonpy.llmonpy_prompt import LLMonPyPromptEvaluator
 from llmonpy.example.test_cycle import GenerateNameCycle
 from llmonpy.example.test_prompts import TestLLMonPyPrompt
 from llmonpy.example.test_tourney import GenerateNamePypeline
@@ -24,14 +24,18 @@ def llmonpy_cli():
                 for model in model_list:
                     print(model.model_name)
         elif args.function == 'prompt':
-            step = LLMonPyPromptEvaluator(MISTRAL_7B, TestLLMonPyPrompt("LLMonPy"))
+            print("running prompt test")
+            model_list = get_active_llm_clients()
+            step = LLMonPyPromptEvaluator(model_list[0], TestLLMonPyPrompt("LLMonPy"))
             result, recorder = run_step(step)
             print(result.to_json())
         elif args.function == 'tourney':
+            print("running tourney test")
             step = GenerateNamePypeline()
             result, recorder = run_step(step)
             print(result.to_json())
         elif args.function == 'cycle':
+            print("running cycle test")
             step = GenerateNameCycle()
             result, recorder = run_step(step)
             print(result.to_json())

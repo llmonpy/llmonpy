@@ -20,9 +20,9 @@ from llmonpy.llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, A
     MISTRAL_8X22B, ANTHROPIC_OPUS, filter_clients_that_didnt_start, GPT4omini, MISTRAL_SMALL
 from llmonpy.llmon_pypeline import LLMonPypeline
 from llmonpy.llmonpy_execute import do_llmonpy_step, run_step
-from llmonpy.llmonpy_step import TraceLogRecorderInterface
+from llmonpy.llmonpy_step import TraceLogRecorderInterface, LLMONPY_OUTPUT_FORMAT_JSON
 from llmonpy.llmonpy_tournament import LLMonPyTournament, TournamentJudgePrompt
-from llmonpy.prompt import create_prompt_steps, LLMonPyPrompt
+from llmonpy.llmonpy_prompt import create_prompt_steps, LLMonPyPrompt
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
 
 
@@ -74,7 +74,7 @@ class NameIterativeRefinementTournamentPrompt(LLMonPyPrompt):
         You are a genius as generating names that are descriptive, but punchy and positive.  The names you generate 
         don't sound too technical or boring.
         """
-    json_output = True
+    output_format = LLMONPY_OUTPUT_FORMAT_JSON
 
     def __init__(self):
         super().__init__()
@@ -128,7 +128,7 @@ class NameIterativeRefinementTournamentPrompt(LLMonPyPrompt):
         system_prompt = """
             You are an expert at following instructions to judge names.
             """
-        json_output = True
+        output_format = LLMONPY_OUTPUT_FORMAT_JSON
 
         def __init__(self, prompt_being_judged):
             super().__init__(prompt_being_judged)

@@ -19,9 +19,10 @@ import uuid
 
 from llmonpy.llm_client import MISTRAL_7B, TOGETHER_QWEN1_5_4B, TOGETHER_LLAMA3_70B
 from llmonpy.llmonpy_execute import run_step
-from llmonpy.prompt import LLMonPyPrompt, LLMonPyPromptEvaluator
+from llmonpy.llmonpy_prompt import LLMonPyPrompt, LLMonPyPromptEvaluator
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
 from llmonpy.trace_log import trace_log_service
+from llmonpy_step import LLMONPY_OUTPUT_FORMAT_JSON
 
 
 class TestLLMonPyPrompt(LLMonPyPrompt):
@@ -30,7 +31,7 @@ class TestLLMonPyPrompt(LLMonPyPrompt):
             For example, if my name is "Alice", you would reply with { "name": "Alice" }. Do not include any other
             text in your response.
             """
-    json_output = True
+    output_format = LLMONPY_OUTPUT_FORMAT_JSON
 
     class LLMonPyOutput(LLMonPyPrompt.LLMonPyOutput):
         def __init__(self, name=None):

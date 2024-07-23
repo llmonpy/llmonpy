@@ -27,9 +27,6 @@ TEMP_SETTING_KEY = "temp"
 
 
 class LLMonPyPrompt:
-
-    test_prompt_text: str
-
     class LLMonPyOutput(LLMonPyStepOutput):
         def __init__(self):
             pass
@@ -40,9 +37,9 @@ class LLMonPyPrompt:
 
     def __init__(self):
         if hasattr(self.__class__, "prompt_text") is False:
-            raise AttributeError("Prompt text not defined in class")
-        if hasattr(self.__class__, "json_output") is False:
-            raise AttributeError("JSON output not defined in class")
+            raise AttributeError("prompt_text not defined in class")
+        if hasattr(self.__class__, "output_format") is False:
+            raise AttributeError("output_format not defined in class")
         if hasattr(self.__class__, "LLMonPyOutput") is False:
             raise AttributeError("LLMonPyOutput not definedLLMonPyOutput in class")
 
@@ -50,14 +47,13 @@ class LLMonPyPrompt:
         return self.__class__.prompt_text
 
     def get_json_output(self):
-        return self.__class__.json_output
+        return self.__class__.output_format == LLMONPY_OUTPUT_FORMAT_JSON
 
     def get_output_format(self):
-        result = LLMONPY_OUTPUT_FORMAT_JSON if self.get_json_output() else LLMONPY_OUTPUT_FORMAT_TEXT
+        result = self.__class__.output_format
         return result
 
     def get_step_name(self):
-        class_obj = self.__class__
         result = get_step_name_from_class_hierarchy(self.__class__)
         return result
 
@@ -116,11 +112,11 @@ class LLMonPyPromptEvaluator(LLMonPyStep):
         result = None
         for i in range(0, 3):
             try:
-                response = self.llm_client.prompt(prompt_text, Nothing, self.prompt.json_output,
+                response = self.llm_client.prompt(prompt_text, Nothing, self.prompt.get_json_output(),
                                                   self.temp)
                 recorder.record_cost(response.get_response_cost())
                 recorder.log_prompt_response(prompt_text, response.response_text)
-                if self.prompt.json_output:
+                if self.prompt.get_json_output():
                     result = self.prompt.output_from_dict(response.response_dict)
                 else:
                     result = self.prompt.output_from_string(response.response_text)

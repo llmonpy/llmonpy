@@ -19,7 +19,7 @@ import uuid
 
 from llmonpy.llmon_pypeline import LLMonPypeline
 from llmonpy.llmonpy_execute import do_llmonpy_parallel_step, do_llmonpy_step
-from llmonpy.prompt import LLMonPyPrompt, create_prompt_steps
+from llmonpy.llmonpy_prompt import LLMonPyPrompt, create_prompt_steps
 from llmonpy.llmonpy_step import LLMonPyStep, LLMonPyStepOutput, TraceLogRecorderInterface, STEP_NAME_SEPARATOR, \
     DictLLMonPyStepOutput, JudgedOutput, STEP_TYPE_TOURNEY, STEP_TYPE_CYCLE, STEP_TYPE_JUDGE, STEP_TYPE_RANKER, \
     STEP_TYPE_JURY, STEP_TYPE_GENERATOR

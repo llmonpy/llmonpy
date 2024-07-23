@@ -8,9 +8,9 @@ from llmonpy.llm_client import MISTRAL_7B, filter_clients_that_didnt_start, GPT4
     ANTHROPIC_SONNET, ANTHROPIC_HAIKU, MISTRAL_8X22B, GPT4omini
 from llmonpy.llmon_pypeline import LLMonPypeline
 from llmonpy.llmonpy_execute import do_llmonpy_step, run_step
-from llmonpy.llmonpy_step import TraceLogRecorderInterface
+from llmonpy.llmonpy_step import TraceLogRecorderInterface, LLMONPY_OUTPUT_FORMAT_JSON
 from llmonpy.llmonpy_tournament import TournamentJudgePrompt, LLMonPyTournament, AdaptiveICLCycle
-from llmonpy.prompt import LLMonPyPrompt, LLMonPyPromptEvaluator
+from llmonpy.llmonpy_prompt import LLMonPyPrompt, LLMonPyPromptEvaluator
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
 
 
@@ -71,7 +71,7 @@ class GenerateProjectSteps(LLMonPyPrompt):
     You are an expert software developer.  As an expert, you know how to break a project down into short, manageable 
     steps and then translate those steps into code
     """
-    json_output = True
+    output_format = LLMONPY_OUTPUT_FORMAT_JSON
 
     def __init__(self, project_description, starting_point, test_case):
         super().__init__()
@@ -133,7 +133,7 @@ class GenerateProjectSteps(LLMonPyPrompt):
             You are an expert software developer.  As an expert, you know how to break a project down into short, manageable 
             steps and then translate those steps into code            
             """
-        json_output = True
+        output_format = LLMONPY_OUTPUT_FORMAT_JSON
 
         def __init__(self, step_being_judged):
             super().__init__(step_being_judged)
