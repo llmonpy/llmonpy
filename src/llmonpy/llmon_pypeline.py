@@ -1,4 +1,4 @@
-from llmonpy_step import LLMonPyStep, TraceLogRecorderInterface, STEP_TYPE_PYPELINE
+from llmonpy.llmonpy_step import LLMonPyStep, TraceLogRecorderInterface, STEP_TYPE_PYPELINE
 
 
 class LLMonPypeline(LLMonPyStep):

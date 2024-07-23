@@ -1,0 +1,2 @@
+include src/llmonpy/api/static/*
+include src/llmonpy/api/static/assets/*

@@ -9,7 +9,18 @@ authors = [{ name="Tom Burns", email="public@llmonpy.ai" }]
 description = "AI pipeline framework for Python."
 readme = "README.md"
 license = { file = "LICENSE" }
-#dependencies = ["required_package1", "required_package2"]
+dependencies = [
+    "google-generativeai",
+    "openai",
+    "mistralai",
+    "anthropic",
+    "nothingpy",
+    "jinja2",
+    "sqlalchemy",
+    "flask",
+    "flask_cors",
+    "together"
+]
 requires-python = ">=3.6"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -19,6 +30,7 @@ classifiers = [
 
 [project.scripts]
 llmonpy = "llmonpy.llmonpy_cli:llmonpy_cli"
+llmonpy_viewer = "llmonpy.api.api:run_api"
 
 # Find packages in the src directory
 [tool.setuptools.packages.find]

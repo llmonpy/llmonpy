@@ -15,8 +15,8 @@
 import concurrent
 import uuid
 
-from llmonpy_step import LLMonPyStep, STEP_STATUS_FAILURE, TraceLogRecorderInterface
-from trace_log import trace_log_service
+from llmonpy.llmonpy_step import LLMonPyStep, STEP_STATUS_FAILURE, TraceLogRecorderInterface
+from llmonpy.trace_log import trace_log_service
 
 
 class FutureStepList:

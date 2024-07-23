@@ -30,8 +30,8 @@ from openai import OpenAI
 import google.generativeai as genai
 from together import Together
 
-from llmonpy_util import fix_common_json_encoding_errors
-from rate_llmiter import RateLlmiter
+from llmonpy.llmonpy_util import fix_common_json_encoding_errors
+from llmonpy.rate_llmiter import RateLlmiter
 
 PROMPT_RETRIES = 5
 RATE_LIMIT_RETRIES = 20

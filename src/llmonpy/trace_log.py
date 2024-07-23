@@ -20,12 +20,12 @@ import json
 import threading
 import uuid
 
-from config import llmonpy_config
-from llmonpy_step import LLMonPyStepOutput, LLMONPY_OUTPUT_FORMAT_JSON, STEP_STATUS_NO_STATUS, STEP_STATUS_SUCCESS, \
+from llmonpy.config import llmonpy_config
+from llmonpy.llmonpy_step import LLMonPyStepOutput, LLMONPY_OUTPUT_FORMAT_JSON, STEP_STATUS_NO_STATUS, STEP_STATUS_SUCCESS, \
     TraceLogRecorderInterface, TourneyResultInterface, JudgedOutput, LlmModelInfo
-from llmonpy_trace_store import SqliteLLMonPyTraceStore
-from system_services import system_services
-from system_startup import llmonpy_start, llmonpy_stop
+from llmonpy.llmonpy_trace_store import SqliteLLMonPyTraceStore
+from llmonpy.system_services import system_services
+from llmonpy.system_startup import llmonpy_start, llmonpy_stop
 
 NO_VARIATION_OF_TRACE_ID = "NO_VARIATION_OF_TRACE_ID"
 

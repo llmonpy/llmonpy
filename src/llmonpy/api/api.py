@@ -12,40 +12,42 @@
 #  WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
 #  COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 #  OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+import os
 
 from flask import jsonify, request, send_from_directory
 
-from api_app import app
-from api_config import api_config
-from api_system_startup import api_system_startup, api_system_stop
-from trace_log import trace_log_service
+from llmonpy.api.api_app import app
+from llmonpy.api.api_config import api_config
+from llmonpy.api.api_system_startup import api_system_startup, api_system_stop
+from llmonpy.trace_log import trace_log_service
 
 TRACE_ID_PARAM = "trace_id"
 STEP_NAME_PARAM = "step_name"
 STEP_ID_PARAM = "step_id"
 
+global_static_directory = None
 
 # make default request resolve to index.html, necessary for vuejs router to work well.  Implies no 404 possible
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def catch_all(path):
-    return send_from_directory("llmonpy/api/static", "index.html")
+    return send_from_directory(global_static_directory, "index.html")
 
 
 @app.route('/assets/<path:path>')
 def serve_static(path):
     path = "assets/" + path
-    return send_from_directory('llmonpy/api/static', path)
+    return send_from_directory(global_static_directory, path)
 
 
 @app.route("/qbawa")
 def serve_datasets():
-    return send_from_directory("llmonpy/api/static", "index.html")
+    return send_from_directory(global_static_directory, "index.html")
 
 
 @app.route("/favicon.ico")
 def serve_favicon():
-    return send_from_directory("llmonpy/api/static", "favicon.ico")
+    return send_from_directory(global_static_directory, "favicon.ico")
 
 
 @app.route('/api/hello_world')
@@ -90,7 +92,28 @@ def get_events_for_step():
     return jsonify(dict_list)
 
 
+def init_api_directory():
+    global global_static_directory
+    if global_static_directory is None:
+        api_file_path = os.path.abspath(__file__)
+        api_dir = os.path.dirname(api_file_path)
+        global_static_directory = os.path.join(api_dir, "static")
+        print("API Directory: " + global_static_directory)
+
+
+def run_api():
+    init_api_directory()
+    api_system_startup()
+    try:
+        port = api_config().port
+        print("Run API on port: " + str(port))
+        app.run(port=port)
+    except Exception as e:
+        print(str(e))
+
+
 if __name__ == "__main__":
+    init_api_directory()
     api_system_startup()
     try:
         port = api_config().port

@@ -16,16 +16,14 @@ import os
 import uuid
 import time
 
-from llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU, \
+from llmonpy.llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU, \
     MISTRAL_8X22B, ANTHROPIC_OPUS, MISTRAL_SMALL, filter_clients_that_didnt_start, GPT4omini
-from llmon_pypeline import LLMonPypeline
-from llmonpy_execute import run_step
-from llmonpy_step import TraceLogRecorderInterface
-from llmonpy_tournament import AdaptiveICLCycle
-from prompt import create_prompt_steps
-from system_startup import llmonpy_start, llmonpy_stop
-from test_tourney import NameIterativeRefinementTournamentPrompt
-from trace_log import trace_log_service
+from llmonpy.llmon_pypeline import LLMonPypeline
+from llmonpy.llmonpy_execute import run_step
+from llmonpy.llmonpy_step import TraceLogRecorderInterface
+from llmonpy.llmonpy_tournament import AdaptiveICLCycle
+from llmonpy.system_startup import llmonpy_start, llmonpy_stop
+from llmonpy.example.test_tourney import NameIterativeRefinementTournamentPrompt
 
 
 class GenerateNameCycle(LLMonPypeline):

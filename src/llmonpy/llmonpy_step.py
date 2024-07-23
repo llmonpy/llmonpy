@@ -17,7 +17,7 @@ import copy
 import json
 import uuid
 
-from config import llmonpy_config
+from llmonpy.config import llmonpy_config
 
 
 LLMONPY_OUTPUT_FORMAT_JSON = "json"

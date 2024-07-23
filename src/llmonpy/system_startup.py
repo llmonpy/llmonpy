@@ -15,9 +15,9 @@
 
 
 def llmonpy_start():
-    from system_services import init_system_services
-    from config import init_llmonpy
-    from trace_log import init_trace_log_service
+    from llmonpy.system_services import init_system_services
+    from llmonpy.config import init_llmonpy
+    from llmonpy.trace_log import init_trace_log_service
 
     init_system_services()
     init_llmonpy()
@@ -25,5 +25,5 @@ def llmonpy_start():
 
 
 def llmonpy_stop():
-    from system_services import system_services
+    from llmonpy.system_services import system_services
     system_services().stop()

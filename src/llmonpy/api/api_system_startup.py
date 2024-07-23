@@ -12,15 +12,15 @@
 #  WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
 #  COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 #  OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-from api_config import init_api
+from llmonpy.api.api_config import init_api
 
 
 def api_system_startup():
-    from system_startup import llmonpy_start
+    from llmonpy.system_startup import llmonpy_start
     llmonpy_start()
     init_api()
 
 
 def api_system_stop():
-    from system_startup import llmonpy_stop
+    from llmonpy.system_startup import llmonpy_stop
     llmonpy_stop()

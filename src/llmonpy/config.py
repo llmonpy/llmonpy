@@ -15,8 +15,8 @@
 import concurrent
 import os
 
-from llm_client import add_llm_clients, ALL_CLIENT_LIST
-from system_services import system_services
+from llmonpy.llm_client import add_llm_clients, ALL_CLIENT_LIST
+from llmonpy.system_services import system_services
 
 DEFAULT_THREAD_POOL_SIZE = 50
 DEFAULT_DATA_DIRECTORY = "data"
@@ -44,6 +44,8 @@ class LLMonPyConfig:
 def init_llmonpy():
     config = LLMonPyConfig()
     system_services().set_config(config)
+    if os.path.isdir(config.data_directory) is False:
+        os.makedirs(config.data_directory)
 
 
 def llmonpy_config() -> LLMonPyConfig:
