@@ -19,10 +19,10 @@ import uuid
 
 from llmonpy.llm_client import MISTRAL_7B, TOGETHER_QWEN1_5_4B, TOGETHER_LLAMA3_70B
 from llmonpy.llmonpy_execute import run_step
-from llmonpy.llmonpy_prompt import LLMonPyPrompt, LLMonPyPromptEvaluator
+from llmonpy.llmonpy_prompt import LLMonPyPrompt, LLMonPyPromptExecutor
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
 from llmonpy.trace_log import trace_log_service
-from llmonpy.llmonpy_step import LLMONPY_OUTPUT_FORMAT_JSON
+from llmonpy.llmonpy_step import LLMONPY_OUTPUT_FORMAT_JSON, LlmModelInfo
 
 
 class TestLLMonPyPrompt(LLMonPyPrompt):
@@ -62,7 +62,8 @@ if __name__ == "__main__":
     llmonpy_start()
     try:
         print("Running TestLLMonPyPrompt")
-        step = LLMonPyPromptEvaluator(MISTRAL_7B, TestLLMonPyPrompt("Tom"))
+        model_info = LlmModelInfo(MISTRAL_7B.model_name)
+        step = LLMonPyPromptExecutor(TestLLMonPyPrompt("Tom"), model_info)
         result, recorder = run_step(step)
         trace_id = recorder.get_trace_id()
         print(result.to_json())

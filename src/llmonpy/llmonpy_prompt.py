@@ -23,7 +23,6 @@ from llmonpy.llm_client import LlmClient
 from llmonpy.trace_log import LlmModelInfo
 
 DEFAULT_OUTPUT_DICT_KEY = "response_string"
-TEMP_SETTING_KEY = "temp"
 
 
 class LLMonPyPrompt:
@@ -75,15 +74,14 @@ class LLMonPyPrompt:
 
 
 # make different evaluators if they handle errors different
-class LLMonPyPromptEvaluator(LLMonPyStep):
-    def __init__(self, llm_client: LlmClient, prompt: LLMonPyPrompt, temp: float = 0.0 ):
-        self.llm_client = llm_client
-        self.temp = temp
+class LLMonPyPromptExecutor(LLMonPyStep):
+    def __init__(self, prompt: LLMonPyPrompt, llm_model_info: LlmModelInfo):
+        self.llm_model_info = llm_model_info
         self.prompt = prompt
         self.template = Template(prompt.get_prompt_text())
 
     def get_thread_pool(self) -> concurrent.futures.ThreadPoolExecutor:
-        result = self.llm_client.get_thread_pool()
+        result = self.get_llm_client().get_thread_pool()
         return result
 
     def get_prompt(self) -> LLMonPyPrompt:
@@ -101,8 +99,12 @@ class LLMonPyPromptEvaluator(LLMonPyStep):
         result.update(super_result)
         return result
 
+    def get_llm_client(self) -> LlmClient:
+        result = self.llm_model_info.get_llm_client()
+        return result
+
     def get_llm_model_info(self):
-        result = LlmModelInfo(self.llm_client.model_name, {TEMP_SETTING_KEY: self.temp})
+        result = self.llm_model_info
         return result
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
@@ -112,8 +114,8 @@ class LLMonPyPromptEvaluator(LLMonPyStep):
         result = None
         for i in range(0, 3):
             try:
-                response = self.llm_client.prompt(prompt_text, Nothing, self.prompt.get_json_output(),
-                                                  self.temp)
+                response = self.get_llm_client().prompt(prompt_text, Nothing, self.prompt.get_json_output(),
+                                                  self.llm_model_info.get_temp())
                 recorder.record_cost(response.get_response_cost())
                 recorder.log_prompt_response(prompt_text, response.response_text)
                 if self.prompt.get_json_output():
@@ -130,12 +132,10 @@ class LLMonPyPromptEvaluator(LLMonPyStep):
         return result, recorder
 
 
-def create_prompt_steps(prompt, client_list, temp_list=None):
+def create_prompt_steps(prompt, model_info_list: [LlmModelInfo]):
     result = []
-    temp_list = temp_list if temp_list is not None else [0.0]
-    for client in client_list:
-        for temp in temp_list:
-            result.append(LLMonPyPromptEvaluator(client, prompt, temp))
+    for model_info in model_info_list:
+        result.append(LLMonPyPromptExecutor(prompt, model_info))
     return result
 
 

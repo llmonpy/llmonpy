@@ -20,7 +20,7 @@ from llmonpy.llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, A
     MISTRAL_8X22B, ANTHROPIC_OPUS, filter_clients_that_didnt_start, GPT4omini, MISTRAL_SMALL
 from llmonpy.llmon_pypeline import LLMonPypeline
 from llmonpy.llmonpy_execute import do_llmonpy_step, run_step
-from llmonpy.llmonpy_step import TraceLogRecorderInterface, LLMONPY_OUTPUT_FORMAT_JSON
+from llmonpy.llmonpy_step import TraceLogRecorderInterface, LLMONPY_OUTPUT_FORMAT_JSON, ModelTemp, make_model_list
 from llmonpy.llmonpy_tournament import LLMonPyTournament, TournamentJudgePrompt
 from llmonpy.llmonpy_prompt import create_prompt_steps, LLMonPyPrompt
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
@@ -154,14 +154,13 @@ class GenerateNamePypeline(LLMonPypeline):
         pass
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        client_list = filter_clients_that_didnt_start([GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B,
-                                                       ANTHROPIC_HAIKU])
-        judge_client_list = filter_clients_that_didnt_start([GPT4omini, GEMINI_FLASH, MISTRAL_7B, MISTRAL_SMALL,
-                                                             ANTHROPIC_HAIKU])
+        client_list = [GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU]
+        client_info_list = make_model_list(ModelTemp(client_list, 0.0), ModelTemp(client_list,0.5))
+        judge_client_info_list = make_model_list(ModelTemp([GPT4omini, GEMINI_FLASH, MISTRAL_7B,
+                                                            MISTRAL_SMALL, ANTHROPIC_HAIKU],0.0))
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt)
-        tournament = LLMonPyTournament(generator_prompt, client_list,[0.0, 0.5], judgement_prompt,
-                                       judge_client_list, [0.0])
+        tournament = LLMonPyTournament(generator_prompt, client_info_list, judgement_prompt, judge_client_info_list)
         result_list, _ = do_llmonpy_step(tournament, recorder)
         for result in result_list:
             print("name:" + result.step_output.name + " score: " + str(result.victory_count))

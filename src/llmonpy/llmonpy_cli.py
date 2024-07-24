@@ -3,10 +3,11 @@ import argparse
 from llmonpy.llm_client import get_active_llm_clients, MISTRAL_7B
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
 from llmonpy.llmonpy_execute import run_step
-from llmonpy.llmonpy_prompt import LLMonPyPromptEvaluator
+from llmonpy.llmonpy_prompt import LLMonPyPromptExecutor
 from llmonpy.example.test_cycle import GenerateNameCycle
 from llmonpy.example.test_prompts import TestLLMonPyPrompt
 from llmonpy.example.test_tourney import GenerateNamePypeline
+from llmonpy.llmonpy_step import LlmModelInfo
 
 
 def llmonpy_cli():
@@ -26,7 +27,8 @@ def llmonpy_cli():
         elif args.function == 'prompt':
             print("running prompt test")
             model_list = get_active_llm_clients()
-            step = LLMonPyPromptEvaluator(model_list[0], TestLLMonPyPrompt("LLMonPy"))
+            model_info = LlmModelInfo(model_list[0].model_name)
+            step = LLMonPyPromptExecutor(TestLLMonPyPrompt("LLMonPy"), model_info)
             result, recorder = run_step(step)
             print(result.to_json())
         elif args.function == 'tourney':

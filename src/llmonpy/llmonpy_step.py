@@ -17,6 +17,7 @@ import copy
 import json
 import uuid
 
+from llmonpy.llm_client import get_llm_client, LlmClient, filter_clients_that_didnt_start
 from llmonpy.config import llmonpy_config
 
 
@@ -24,6 +25,7 @@ LLMONPY_OUTPUT_FORMAT_JSON = "json"
 LLMONPY_OUTPUT_FORMAT_TEXT = "text"
 EXAMPLE_LIST_KEY = "example_list"
 STEP_NAME_SEPARATOR = ":"
+TEMP_SETTING_KEY = "temp"
 
 STEP_TYPE_PROMPT = "prompt"
 STEP_TYPE_TOURNEY = "tourney"
@@ -51,9 +53,20 @@ def get_step_name_from_class_hierarchy(class_obj):
 
 
 class LlmModelInfo:
-    def __init__(self, model_name, client_settings_dict):
+    def __init__(self, model_name, client_settings_dict=None):
         self.model_name = model_name
-        self.client_settings_dict = client_settings_dict
+        self.client_settings_dict = client_settings_dict if client_settings_dict is not None else {TEMP_SETTING_KEY: 0.0}
+
+    def get_llm_client(self):
+        result = get_llm_client(self.model_name)
+        return result
+
+    def get_model_name(self):
+        return self.model_name
+
+    def get_temp(self):
+        result = self.client_settings_dict.get(TEMP_SETTING_KEY, None)
+        return result
 
     def to_dict(self):
         result = copy.deepcopy(vars(self))
@@ -66,6 +79,27 @@ class LlmModelInfo:
     @staticmethod
     def from_dict(dict):
         return LlmModelInfo(**dict)
+
+
+class ModelTemp:
+    def __init__(self, model_client_list: [LlmClient], temp):
+        self.model_client_list = model_client_list
+        self.temp = temp
+
+    def get_model_info_list(self):
+        result = []
+        filtered_list = filter_clients_that_didnt_start(self.model_client_list)
+        for model_client in filtered_list:
+            result.append(LlmModelInfo(model_client.model_name, {TEMP_SETTING_KEY: self.temp}))
+        return result
+
+
+def make_model_list(*args) -> [LlmModelInfo]:
+    result = []
+    for arg in args:
+        arg_model_list = arg.get_model_info_list()
+        result.extend(arg_model_list)
+    return result
 
 
 class LLMonPyStepOutput:

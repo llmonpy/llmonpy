@@ -20,7 +20,7 @@ from llmonpy.llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, A
     MISTRAL_8X22B, ANTHROPIC_OPUS, MISTRAL_SMALL, filter_clients_that_didnt_start, GPT4omini
 from llmonpy.llmon_pypeline import LLMonPypeline
 from llmonpy.llmonpy_execute import run_step
-from llmonpy.llmonpy_step import TraceLogRecorderInterface
+from llmonpy.llmonpy_step import TraceLogRecorderInterface, make_model_list, ModelTemp
 from llmonpy.llmonpy_tournament import AdaptiveICLCycle
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
 from llmonpy.example.test_tourney import NameIterativeRefinementTournamentPrompt
@@ -31,14 +31,14 @@ class GenerateNameCycle(LLMonPypeline):
         pass
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        client_list = filter_clients_that_didnt_start([GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET,
-                                                       MISTRAL_7B, ANTHROPIC_HAIKU])
-        judge_client_list = filter_clients_that_didnt_start([MISTRAL_SMALL, GEMINI_FLASH, MISTRAL_7B, GPT4omini,
-                                                             ANTHROPIC_HAIKU])
+        client_list = [GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU]
+        client_info_list = make_model_list(ModelTemp(client_list, 0.0), ModelTemp(client_list,0.75))
+        judge_client_info_list = make_model_list(ModelTemp([MISTRAL_SMALL, GEMINI_FLASH, MISTRAL_7B, GPT4omini,
+                                                             ANTHROPIC_HAIKU],0.0))
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt)
-        cycle = AdaptiveICLCycle(generator_prompt, client_list, [0.0, 0.75], judgement_prompt,
-                                 judge_client_list, [0.0], 5, 3)
+        cycle = AdaptiveICLCycle(generator_prompt, client_info_list, judgement_prompt,
+                                 judge_client_info_list, 5, 3)
         result_list, _ = cycle.execute_step(recorder)
         for result in result_list:
             print("name:" + result.name)

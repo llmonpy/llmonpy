@@ -65,22 +65,19 @@ class TournamentJudgePrompt(LLMonPyPrompt):
 
 
 class TournamentGenerator(LLMonPypeline):
-    def __init__(self, generation_prompt, generation_model_list, generation_temperature_list):
+    def __init__(self, generation_prompt, generation_model_info_list):
         self.generation_prompt = generation_prompt
-        self.generation_model_list = generation_model_list
-        self.generation_temperature_list = generation_temperature_list
-        self.contestant_list = create_prompt_steps(generation_prompt, generation_model_list,
-                                                   generation_temperature_list)
+        self.generation_model_info_list = generation_model_info_list
+        self.contestant_list = create_prompt_steps(generation_prompt, generation_model_info_list)
 
     def get_step_type(self) -> str:
         return STEP_TYPE_GENERATOR
 
     def get_input_dict(self, recorder: TraceLogRecorderInterface):
-        generation_model_name_list = [model.get_model_name() for model in self.generation_model_list]
+        generation_model_info_list = [model_info.to_dict() for model_info in self.generation_model_info_list]
         result = {"prompt_template": self.generation_prompt.get_prompt_text(),
                   "prompt_input_dict": self.generation_prompt.to_dict(),
-                  "model_list": generation_model_name_list,
-                  "temperature_list": self.generation_temperature_list}
+                  "model_list": generation_model_info_list}
         return result
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
@@ -120,25 +117,23 @@ class CompareOutputStep(LLMonPyStep):
             result = copy.deepcopy(vars(self))
             return result
 
-    def __init__(self, output_1, output_2, judgement_prompt, judgement_model_list, judgement_temperature_list):
+    def __init__(self, output_1, output_2, judgement_prompt, judgement_model_info_list):
         self.output_1 = output_1
         self.output_2 = output_2
         self.winner = None
         self.dissent_count = 0
         self.judgement_prompt = judgement_prompt
-        self.judgement_model_list = judgement_model_list
-        self.judgement_temperature_list = judgement_temperature_list
-        self.judge_list = create_prompt_steps(judgement_prompt, judgement_model_list, judgement_temperature_list)
+        self.judgement_model_info_list = judgement_model_info_list
+        self.judge_list = create_prompt_steps(judgement_prompt, judgement_model_info_list)
 
     def get_step_type(self) -> str:
         return STEP_TYPE_JURY
 
     def get_input_dict(self, recorder: TraceLogRecorderInterface):
-        judgement_model_name_list = [model.get_model_name() for model in self.judgement_model_list]
+        judgement_model_info_list = [model_info.to_dict() for model_info in self.judgement_model_info_list]
         result = {"output_1": self.output_1.to_dict(), "output_2": self.output_2.to_dict(),
                   "judgement_prompt": self.judgement_prompt.get_prompt_text(),
-                  "judgement_model_list": judgement_model_name_list,
-                  "judgement_temperature_list": self.judgement_temperature_list}
+                  "judgement_model_info_list": judgement_model_info_list}
         return result
 
     def execute_step(self, recorder):
@@ -173,23 +168,20 @@ class CompareOutputStep(LLMonPyStep):
 
 
 class RankOutputStep(LLMonPyStep):
-    def __init__(self, contestant_list: [JudgedOutput], judgement_prompt, judgement_model_list,
-                 judgement_temperature_list):
+    def __init__(self, contestant_list: [JudgedOutput], judgement_prompt, judgement_model_info_list):
         self.contestant_list = contestant_list
         self.judgement_prompt = judgement_prompt
-        self.judgement_model_list = judgement_model_list
-        self.judgement_temperature_list = judgement_temperature_list
+        self.judgement_model_info_list = judgement_model_info_list
 
     def get_step_type(self) -> str:
         return STEP_TYPE_RANKER
 
     def get_input_dict(self, recorder: TraceLogRecorderInterface):
         contestant_dict_list = [contestant.to_dict() for contestant in self.contestant_list]
-        judgement_model_name_list = [model.get_model_name() for model in self.judgement_model_list]
+        judgement_model_info_list = [model_info.to_dict() for model_info in self.judgement_model_info_list]
         result = {"contestant_list": contestant_dict_list,
                   "judgement_prompt": self.judgement_prompt.get_prompt_text(),
-                  "judgement_model_list": judgement_model_name_list,
-                  "judgement_temperature_list": self.judgement_temperature_list}
+                  "judgement_model_info_list": judgement_model_info_list}
         return result
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
@@ -197,13 +189,12 @@ class RankOutputStep(LLMonPyStep):
         contest_list = []
         number_of_contestants = len(self.contestant_list)
         judge_step_name = self.judgement_prompt.get_step_name()
-        number_of_judges = len(self.judgement_model_list) * len(self.judgement_temperature_list)
+        number_of_judges = len(self.judgement_model_info_list)
         tourney_result = recorder.create_tourney_result(number_of_judges, judge_step_name)
         while start_index < (number_of_contestants - 1):
             for i in range(start_index + 1, number_of_contestants):
                 contest_list.append(CompareOutputStep(self.contestant_list[start_index], self.contestant_list[i],
-                                                      self.judgement_prompt, self.judgement_model_list,
-                                                      self.judgement_temperature_list))
+                                                      self.judgement_prompt, self.judgement_model_info_list))
             start_index += 1
         future_list = []
         print("number of contests " + str(len(contest_list)))
@@ -231,39 +222,30 @@ class RankOutputStep(LLMonPyStep):
 
 
 class LLMonPyTournament(LLMonPypeline):
-    def __init__(self, generation_prompt, generation_model_list, generation_temperature_list, judgement_prompt,
-                 judgement_model_list, judgement_temperature_list):
+    def __init__(self, generation_prompt, generation_model_info_list, judgement_prompt,
+                 judgement_model_info_list):
         self.generation_prompt = generation_prompt
-        self.generation_model_list = generation_model_list
-        self.generation_temperature_list = generation_temperature_list
+        self.generation_model_info_list = generation_model_info_list
         self.judgement_prompt = judgement_prompt
-        self.judgement_model_list = judgement_model_list
-        self.judgement_temperature_list = judgement_temperature_list
-        self.contestant_list = create_prompt_steps(generation_prompt, generation_model_list,
-                                                   generation_temperature_list)
-        self.judge_list = create_prompt_steps(judgement_prompt, judgement_model_list, judgement_temperature_list)
+        self.judgement_model_info_list = judgement_model_info_list
 
     def get_step_type(self) -> str:
         return STEP_TYPE_TOURNEY
 
     def get_input_dict(self, recorder: TraceLogRecorderInterface):
-        generation_model_name_list = [model.get_model_name() for model in self.generation_model_list]
-        judgement_model_name_list = [model.get_model_name() for model in self.judgement_model_list]
+        generation_model_info_list = [model_info.to_dict() for model_info in self.generation_model_info_list]
+        judgement_model_info_list = [model_info.to_dict() for model_info in self.judgement_model_info_list]
         result = {"generation_prompt": self.generation_prompt.get_prompt_text(),
-                  "generation_model_list": generation_model_name_list,
-                  "generation_temperature_list": self.generation_temperature_list,
+                  "generation_model_info_list": generation_model_info_list,
                   "judgement_prompt": self.judgement_prompt.get_prompt_text(),
-                  "judgement_model_list": judgement_model_name_list,
-                  "judgement_temperature_list": self.judgement_temperature_list}
+                  "judgement_model_info_list": judgement_model_info_list}
         return result
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
         output_list: [JudgedOutput] = []
-        generate_step = TournamentGenerator(self.generation_prompt, self.generation_model_list,
-                                            self.generation_temperature_list)
+        generate_step = TournamentGenerator(self.generation_prompt, self.generation_model_info_list)
         output_list, _ = do_llmonpy_step(generate_step, recorder)
-        rank_step = RankOutputStep(output_list, self.judgement_prompt, self.judgement_model_list,
-                                   self.judgement_temperature_list)
+        rank_step = RankOutputStep(output_list, self.judgement_prompt, self.judgement_model_info_list)
         ordered_output_list, step_recorder = do_llmonpy_step(rank_step, recorder)
         return ordered_output_list, recorder
 
@@ -277,20 +259,15 @@ class LLMonPyTournament(LLMonPypeline):
 
 
 class AdaptiveICLCycle(LLMonPypeline):
-    def __init__(self, generation_prompt, generation_model_list, generation_temperature_list, judgement_prompt,
-                 judgement_model_list, judgement_temperature_list,
-                 number_of_examples: int = 1, max_cycles: int = 4,
-                 first_round_client_list=None, first_round_temperature_list=None):
+    def __init__(self, generation_prompt, generation_model_info_list, judgement_prompt,
+                 judgement_model_info_list, number_of_examples: int = 1, max_cycles: int = 4,
+                 first_round_model_info_list=None):
         self.generation_prompt = generation_prompt
         self.generation_prompt_name = self.generation_prompt.get_step_name()
-        self.generation_model_list = generation_model_list
-        self.generation_temperature_list = generation_temperature_list
+        self.generation_model_info_list = generation_model_info_list
         self.judgement_prompt = judgement_prompt
-        self.judgement_model_list = judgement_model_list
-        self.judgement_temperature_list = judgement_temperature_list
-        self.first_round_client_list = first_round_client_list if first_round_client_list is not None else generation_model_list
-        self.first_round_temperature_list = first_round_temperature_list if first_round_temperature_list is not None else generation_temperature_list
-        self.judge_list = create_prompt_steps(judgement_prompt, judgement_model_list, judgement_temperature_list)
+        self.judgement_model_info_list = judgement_model_info_list
+        self.first_round_model_info_list = first_round_model_info_list if first_round_model_info_list is not None else generation_model_info_list
         self.number_of_examples = number_of_examples
         self.max_cycles = max_cycles
         self.example_list: [JudgedOutput] = []
@@ -299,17 +276,13 @@ class AdaptiveICLCycle(LLMonPypeline):
         return STEP_TYPE_CYCLE
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        tournament = LLMonPyTournament(self.generation_prompt, self.first_round_client_list,
-                                       self.first_round_temperature_list,
-                                       self.judgement_prompt, self.judgement_model_list,
-                                       self.judgement_temperature_list)
+        tournament = LLMonPyTournament(self.generation_prompt, self.first_round_model_info_list,
+                                       self.judgement_prompt, self.judgement_model_info_list)
         first_round_result_list, _ = do_llmonpy_step(tournament, recorder)
         self.update_example_list(first_round_result_list, recorder)
         for i in range(1, self.max_cycles):
-            tournament = LLMonPyTournament(self.generation_prompt, self.generation_model_list,
-                                           self.generation_temperature_list,
-                                           self.judgement_prompt, self.judgement_model_list,
-                                           self.judgement_temperature_list)
+            tournament = LLMonPyTournament(self.generation_prompt, self.generation_model_info_list,
+                                           self.judgement_prompt, self.judgement_model_info_list)
             recorder.set_step_examples(self.generation_prompt_name, self.get_example_output_list())
             result_list, _ = do_llmonpy_step(tournament, recorder)
             new_champion = self.update_example_list(result_list, recorder)
@@ -337,8 +310,7 @@ class AdaptiveICLCycle(LLMonPypeline):
             full_list = best_list + self.example_list
             for judged_output in full_list:
                 judged_output.reset_victory_count()
-            rank_step = RankOutputStep(full_list, self.judgement_prompt, self.judgement_model_list,
-                                       self.judgement_temperature_list)
+            rank_step = RankOutputStep(full_list, self.judgement_prompt, self.judgement_model_info_list)
             ordered_list, step_recorder = do_llmonpy_step(rank_step, recorder)
             self.example_list = ordered_list[0:self.number_of_examples]
             new_champion = self.example_list[0].output_id != current_champion.output_id
