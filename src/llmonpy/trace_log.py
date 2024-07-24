@@ -415,10 +415,10 @@ class TraceLogRecorder (TraceLogRecorderInterface):
             if self.parent_recorder is not None:
                 self.parent_recorder.record_cost(cost)
 
-    def create_tourney_result(self, number_of_judges, judge_step_name) -> TourneyResult:
+    def create_tourney_result(self, number_of_judges, judged_step_name) -> TourneyResult:
         tourney_result_id = str(uuid.uuid4())
         result = TourneyResult(tourney_result_id, self.trace_data.step_id, self.trace_data.trace_id,
-                               judge_step_name, self.trace_data.start_time, self.trace_data.input_dict, number_of_judges)
+                               judged_step_name, self.trace_data.start_time, self.trace_data.input_dict, number_of_judges)
         return result
 
     def record_tourney_result(self, contestant_list: [LLMonPyStepOutput], tourney_result):

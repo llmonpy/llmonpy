@@ -25,7 +25,7 @@ from llmonpy.trace_log import LlmModelInfo
 DEFAULT_OUTPUT_DICT_KEY = "response_string"
 
 
-class LLMonPyPrompt:
+class LLMonPyPrompt(LLMonPyStep):
     class LLMonPyOutput(LLMonPyStepOutput):
         def __init__(self):
             pass

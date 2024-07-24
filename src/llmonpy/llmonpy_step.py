@@ -232,6 +232,10 @@ class LLMonPyStep:
         result = get_step_name_from_class_hierarchy(self.__class__)
         return result
 
+    def get_short_step_name(self):
+        result = self.__class__.__name__
+        return result
+
     def get_step_type(self) -> str:
         raise NotImplementedError()
 
