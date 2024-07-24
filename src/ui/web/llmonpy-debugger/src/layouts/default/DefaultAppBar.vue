@@ -3,7 +3,7 @@
     <v-app-bar-nav-icon @click="drawer = !drawer"/>
     <span class="text-h5 pr-2 py-5">{{ name }}</span>
     <v-spacer/>
-    <span class="text-h6 pa-5">7/4/24-1:{{ env }}</span>
+    <span class="text-h6 pa-5">7/24/24-1:{{ env }}</span>
   </v-app-bar>
   <v-navigation-drawer v-model="drawer" temporary>
     <v-list>
