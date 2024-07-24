@@ -178,10 +178,12 @@ export default {
     logsLoaded: false,
     loadingLogs: false,
     showList:[],
-    showOptionList: [SHOW_REPORT, SHOW_INPUT, SHOW_OUTPUT, SHOW_LOGS, SHOW_ERRORS, SHOW_STEPS],
+    allOptionList: [SHOW_REPORT, SHOW_INPUT, SHOW_OUTPUT, SHOW_LOGS, SHOW_ERRORS, SHOW_STEPS],
+    showOptionList: [],
   }),
   methods: {
     reset() {
+      this.showOptionList = this.allOptionList.slice();
       this.showList = [];
       this.stepInput = this.stepOutput = this.stepErrors = this.stepModelReportList = this.stepEvents = null;
       this.logsLoaded = this.loadingLogs = false;
@@ -234,6 +236,7 @@ export default {
     }
   },
   created() {
+    this.reset()
     this.setup()
   },
   computed: {},
