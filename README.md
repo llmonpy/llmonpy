@@ -102,3 +102,19 @@ the logs for each step and the sub-steps of each step.  The Victory Report divid
 by the number of victories the model had in one on one battles.  The trace data is stored in the "data" directory in your
 project directory.  It is stored in a SQLite database.
 
+
+### Training Data (QBaWa)
+LLMonPy stores the results of all the one on one battles used to rank the responses in a tourney.  This data can be used
+to fine-tune models.  It is indexed by the name of the prompt class.  To get a list of prompts with training data, use
+the following command:
+
+```bash
+llmonpy qbawa_list
+```
+
+This command will return a list of prompt names.  To get the actual training data as JSON, use the following command:
+
+```bash
+llmonpy qbawa -name=<prompt_name>
+```
+
