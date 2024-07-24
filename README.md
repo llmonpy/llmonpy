@@ -28,12 +28,14 @@ pip install llmonpy
 LLMonPy uses a lot of models, so you will probably need several API keys to use it.  On startup, it looks for these keys
 and initializes the clients for associated models for the keys it finds.  The following environment variables are used:
 
-| First Choice             | Second Choice |
-|--------------------------| --- |
-| `LLMONPY_OPENAI_API_KEY` | `OPENAI_API_KEY` |
+| First Choice                | Second Choice       |
+|-----------------------------|---------------------|
+| `LLMONPY_OPENAI_API_KEY`    | `OPENAI_API_KEY`    |
 | `LLMONPY_ANTHROPIC_API_KEY` | `ANTHROPIC_API_KEY` |
-| `LLMONPY_MISTRAL_API_KEY` | `MISTRAL_API_KEY` |
-| `LLMONPY_GEMINI_API_KEY` | `GEMINI_API_KEY` |
+| `LLMONPY_MISTRAL_API_KEY`   | `MISTRAL_API_KEY`   |
+| `LLMONPY_GEMINI_API_KEY`    | `GEMINI_API_KEY`    |
+| `LLMONPY_FIREWORKS_API_KEY` | `FIREWORKS_API_KEY` |
+
 
 ### Testing Setup
 To determine what models are available, this command will list the models that are available:

@@ -14,6 +14,14 @@ if [ $? -ne 0 ]; then
     echo "Error: Failed to execute 'vite build'."
     exit 1
 fi
+# record dist directory for copying
+cd dist
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to change directory to dist."
+    exit 1
+fi
+dist_dir=$(pwd)
+echo "dist_dir: $dist_dir"
 
 # Changing to api directory
 cd $starting_dir
@@ -29,7 +37,9 @@ if [ -d "static" ]; then
 fi
 
 # Copying files from ../llmonpy-debugger/dist to static directory
-cp -R ../web/llmonpy-debugger/dist/* static/
+dist_files="${dist_dir}/*"
+echo "dist_files: $dist_files"
+cp -R $dist_files static/
 if [ $? -ne 0 ]; then
     echo "Error: Failed to copy files to static directory."
     exit 1

@@ -24,7 +24,7 @@ from llmonpy.llmonpy_step import TraceLogRecorderInterface, make_model_list, Mod
 from llmonpy.llmonpy_tournament import AdaptiveICLCycle
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
 from llmonpy.example.test_tourney import NameIterativeRefinementTournamentPrompt
-from llmonpy_gar import GenerateAggregateRankStep
+from llmonpy.llmonpy_gar import GenerateAggregateRankStep
 
 
 class GenerateNameGar(LLMonPypeline):
