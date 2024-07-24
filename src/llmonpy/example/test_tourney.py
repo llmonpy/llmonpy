@@ -31,20 +31,17 @@ class NameIterativeRefinementTournamentPrompt(LLMonPyPrompt):
             I need to name an exciting new technique for responding to requests that are given to LLMs to respond to.  
             It is well known LLMs give better responses when shown given examples of good responses.  I have created a 
             way to give LLMs an example of a good answer for the exact request they are responding too.  Given a 
-            request, I ask 4 different LLMs to respond.  Then I use another set of LLMs to judge and rank the responses.
-            The winning response is determined by majority vote of the LLM judges.  Then there is another round of the 
-            tournament to generate a response, but the winner of the last round is given as example of a good response. 
-            I've found that this makes the 2nd round responses much, much better!  The same LLMs as judge is used to
+            request, I ask a large group of different LLMs to respond.  Then I use another set of LLMs to judge and 
+            rank the responses. The winning response is determined by majority vote of the LLM judges.  Then there is 
+            another round of the tournament to generate a response, but the best results of the last round are given as 
+            example of good responses. The 2nd round responses are much, much better!  The same LLMs as judge is used to
             pick a winner of the 2nd round.  Then the judges are used again to compare the winner of the first round 
             against the winner of the 2nd round.  If the 2nd round wins, the cycle is repeated but with the winner of 
             the 2nd round as the example of a good response. This continues as long as the responses keep getting better.
             This is an example of "adaptive in-context learning (ICL)".  ICL is also called "few-shot prompting". AdaptiveICL
             does not usually include multiple rounds of tournaments.
             
-            I've found that creating the right name matters a lot.  For example, there was a process to compare 2 or 
-            more approaches of responding to an LLM requests.  I called it an "Exploratory Trial".  No one paid any 
-            attention to the idea.  Then I changed the name to "Battle".  Suddenly, everyone thought it was a great 
-            idea!  Other examples of good names for algorithms are: 
+            Examples of good names for algorithms are: 
             
             1. "Artificial Intelligence": for what is essentially linear algebra.  
             2. "Genetic Algorithms": simulate the process of evolution to solve optimization problems
@@ -58,16 +55,17 @@ class NameIterativeRefinementTournamentPrompt(LLMonPyPrompt):
             6. PageRank: Developed by Google founders Larry Page and Sergey Brin, this algorithm ranks web pages in 
                 search engine results. The name is a play on Larry Page's name and the idea of ranking pages.
             7. "Deep Dream": a neural network visualization technique that generates surreal and dream-like images.
+            8. "AdaptiveICL": a technique for generating better responses from LLMs by showing them examples of good responses
             
             {% if example_list  %}
-            This is exciting! We have already generated some really good names and I would like you to build on
-            on our success.  Improve on the these names: 
+            Improve on these examples of good names for this technique: 
                 {% for example in example_list %}
                     "{{ example.name }}"
                 {% endfor %}
             {% endif %}
 
-            I would like you to suggest a name for my prompting technique.  Please reply with JSON in the form:
+            I would like you to suggest a name for this method of getting better responses from a LLM.  
+            Please reply with JSON in the form:
             {"name": "your name suggestion"}.  Do not include any other text in your response.
             """
     system_prompt="""
