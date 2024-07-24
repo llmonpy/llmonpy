@@ -85,13 +85,17 @@ class LlmModelInfo:
 class ModelTemp:
     def __init__(self, model_client_list: [LlmClient], temp):
         self.model_client_list = model_client_list
-        self.temp = temp
+        if isinstance(temp, list):
+            self.temp_list = temp
+        else:
+            self.temp_list = [temp]
 
     def get_model_info_list(self):
         result = []
         filtered_list = filter_clients_that_didnt_start(self.model_client_list)
         for model_client in filtered_list:
-            result.append(LlmModelInfo(model_client.model_name, {TEMP_SETTING_KEY: self.temp}))
+            for temp in self.temp_list:
+                result.append(LlmModelInfo(model_client.model_name, {TEMP_SETTING_KEY: temp}))
         return result
 
 

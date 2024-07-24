@@ -31,18 +31,20 @@ class GenerateNameCycle(LLMonPypeline):
         pass
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        client_list = [GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU]
-        client_info_list = make_model_list(ModelTemp(client_list, 0.0), ModelTemp(client_list,0.75))
+        first_round_list = [GPT4o, GEMINI_PRO, ANTHROPIC_SONNET, GEMINI_FLASH, GPT4omini]
+        first_round_info_list = make_model_list(ModelTemp(first_round_list, [0.0, 0.75]))
+        aggregate_list = [GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU]
+        aggregate_info_list = make_model_list(ModelTemp(aggregate_list, [0.0, 0.75]))
         judge_client_info_list = make_model_list(ModelTemp([MISTRAL_SMALL, GEMINI_FLASH, MISTRAL_7B, GPT4omini,
                                                              ANTHROPIC_HAIKU],0.0))
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt)
-        cycle = AdaptiveICLCycle(generator_prompt, client_info_list, judgement_prompt,
-                                 judge_client_info_list, 5, 3)
+        cycle = AdaptiveICLCycle(generator_prompt, aggregate_info_list, judgement_prompt,
+                                 judge_client_info_list, 5, 2, first_round_info_list)
         result_list, _ = cycle.execute_step(recorder)
         for result in result_list:
-            print("name:" + result.name)
-        return result_list[0], recorder
+            print("name:" + result.step_output.name)
+        return result_list.step_output, recorder
 
 
 if __name__ == "__main__":

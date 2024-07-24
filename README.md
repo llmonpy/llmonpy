@@ -54,9 +54,16 @@ To test the tourneys, you can use the following command (it will cost about $0.0
 llmonpy tourney
 ```
 
-To test the AdaptiveICLCycle, you can use the following command (it will cost about $0.12 or less):
+To test the AdaptiveICLCycle, you can use the following command (it will cost about $0.9 or less):
 ```bash
 llmonpy cycle
+```
+
+To test [mixture of agents](https://arxiv.org/pdf/2406.04692), what I call GenerateAggregateRank (GAR) you can use 
+the following command (it will cost about $0.12 or less):
+
+```bash	
+llmonpy gar
 ```
 
 ### Creating Prompts
@@ -86,6 +93,11 @@ is the response with the most victories.  There is an example of a tourney in st
 The AdaptiveICLCycle use a tourney to generate a list of examples of good responses.  It then re-runs the tourney with
 the good responses used as examples to improve the quality of the responses.  The cycle continues until it reaches a
 limit you set or the responses have stopped improving. There is an example of a cycle in steps_prompt.py file.
+
+### GenerateAggregateRank (GAR)
+The GenerateAggregateRank (GAR) is a mixture of agents that uses a list of "generator" models to generate responses a 
+first round of responses.  The first rounds of responses are used as examples for the next round of responses. That process
+is repeated for the number of rounds you set.  The last round of responses are ranked by a list of "judge" models.
 
 ### Trace Viewer
 LLMonPy has a trace viewer that can help you understand how your pipeline is working.  To start it use this command:

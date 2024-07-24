@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llmonpy"
-version = "0.1.7"
+version = "0.1.8"
 authors = [{ name="Tom Burns", email="public@llmonpy.ai" }]
 description = "AI pipeline framework for Python."
 readme = "README.md"

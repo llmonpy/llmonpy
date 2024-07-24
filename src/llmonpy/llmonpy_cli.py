@@ -9,12 +9,13 @@ from llmonpy.example.test_cycle import GenerateNameCycle
 from llmonpy.example.test_prompts import TestLLMonPyPrompt
 from llmonpy.example.test_tourney import GenerateNamePypeline
 from llmonpy.llmonpy_step import LlmModelInfo
-from trace_log import trace_log_service
+from llmonpy.example.test_gar import GenerateNameGar
+from llmonpy.trace_log import trace_log_service
 
 
 def llmonpy_cli():
     parser = argparse.ArgumentParser(description='Run specific functions from the command line.')
-    parser.add_argument('function', choices=['models', 'prompt', 'tourney', 'cycle', 'qbawa_list', 'qbawa'],
+    parser.add_argument('function', choices=['models', 'prompt', 'tourney', 'cycle', 'gar', 'qbawa_list', 'qbawa'],
                         help='The function to run.')
     parser.add_argument('-name', type=str, help='name argument')
     args = parser.parse_args()
@@ -42,6 +43,11 @@ def llmonpy_cli():
         elif args.function == 'cycle':
             print("running cycle test")
             step = GenerateNameCycle()
+            result, recorder = run_step(step)
+            print(result.to_json())
+        elif args.function == 'gar':
+            print("running gar test")
+            step = GenerateNameGar()
             result, recorder = run_step(step)
             print(result.to_json())
         elif args.function == 'qbawa_list':

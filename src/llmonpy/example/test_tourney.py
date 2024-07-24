@@ -55,7 +55,6 @@ class NameIterativeRefinementTournamentPrompt(LLMonPyPrompt):
             6. PageRank: Developed by Google founders Larry Page and Sergey Brin, this algorithm ranks web pages in 
                 search engine results. The name is a play on Larry Page's name and the idea of ranking pages.
             7. "Deep Dream": a neural network visualization technique that generates surreal and dream-like images.
-            8. "AdaptiveICL": a technique for generating better responses from LLMs by showing them examples of good responses
             
             {% if example_list  %}
             Improve on these examples of good names for this technique: 
