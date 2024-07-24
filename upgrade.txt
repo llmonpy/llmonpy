@@ -5,7 +5,7 @@ pip install --upgrade mistralai
 pip install --upgrade anthropic
 pip install --upgrade nothingpy
 pip install --upgrade jinja2
-pip install --upgrade sqlalchemy
 pip install --upgrade flask
 pip install --upgrade flask_cors
 pip install --upgrade together
+pip install --upgrade fireworks-ai

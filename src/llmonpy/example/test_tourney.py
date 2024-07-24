@@ -97,30 +97,22 @@ class NameIterativeRefinementTournamentPrompt(LLMonPyPrompt):
     class JudgePrompt(TournamentJudgePrompt):
         prompt_text = """
             I need you to judge the name suggestion for a new prompting technique.  The name should be descriptive, 
-            but punchy and positive.  The name should not sound too technical or boring.  The name should be 
-            memorable and easy to say.  The name should be easy to remember.  The name should be easy to spell.  The 
-            name should be easy to say.  The name should be easy to remember.  Examples of good names are:
+            but punchy and positive.  The name should not sound too technical or boring. The name should be easy to 
+            remember.  The name should be easy to spell.  The name should be easy to say. Examples of good comparisons are:
             
-            1. "Artificial Intelligence": for what is essentially linear algebra.  
-            2. "Genetic Algorithms": simulate the process of evolution to solve optimization problems
-            3. "Quicksort": a sorting algorithm that is not the fastest but is very fast in practice.
-            4. "Ant Colony Optimization": Inspired by the foraging behavior of ants, this algorithm is used for solving 
-                combinatorial optimization problems. Ants deposit pheromones to mark paths, which influences the 
-                behavior of other ants, leading to optimal solutions over time.
-            5. YOLO (You Only Look Once): A real-time object detection algorithm that processes images in a single pass 
-                through the network, making it faster and more efficient. The catchy name emphasizes the algorithm's 
-                efficiency and speed.
-            6. PageRank: Developed by Google founders Larry Page and Sergey Brin, this algorithm ranks web pages in 
-                search engine results. The name is a play on Larry Page's name and the idea of ranking pages.
-            7. "Deep Dream": a neural network visualization technique that generates surreal and dream-like images.
+            Artificial Intelligence vs. PatternSolver:  Artificial Intelligence is the winner
+            GenOpt vs. Genetic Algorithms:  Genetic Algorithms is the winner
+            Quicksort vs. EffiSort:  Quicksort is the winner
+            OnePassDetect vs. YOLO:  YOLO is the winner
+            PageRank vs TopPage: PageRank is the winner
+            SurrealVis vs Deep Dream: Deep Dream is the winner
 
             Given these instructions, which do you think is the better name:
             
-            Candidate 1: {{ contestant_1_name }}
-            Candidate 2: {{ contestant_2_name }}
+            Candidate 1: {{ contestant_1_name }} vs Candidate 2: {{ contestant_2_name }}
             
-            Please reply with JSON in the form: {"winner": 1} or {"winner": 2}.  Do not include any other text in your 
-            response.
+            Please reply with this JSON if Candidate 1 is the winner : {"winner": 1} or with this JSON if
+            Candidate 2 is the winner: {"winner": 2}.  Do not include any other text in your response.
             """
         system_prompt = """
             You are an expert at following instructions to judge names.

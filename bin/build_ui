@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Navigating to t3000 directory
+starting_dir=$(pwd)
+# Navigating to debugger directory
 cd src/ui/web/llmonpy-debugger
 if [ $? -ne 0 ]; then
     echo "Error: Failed to change directory to llmonpy-debugger."
@@ -15,7 +16,8 @@ if [ $? -ne 0 ]; then
 fi
 
 # Changing to api directory
-cd ../../api
+cd $starting_dir
+cd src/llmonpy/api
 if [ $? -ne 0 ]; then
     echo "Error: Failed to change directory to api. "
     exit 1

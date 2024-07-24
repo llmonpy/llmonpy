@@ -17,7 +17,8 @@ import time
 import traceback
 import uuid
 
-from llmonpy.llm_client import MISTRAL_7B, TOGETHER_QWEN1_5_4B, TOGETHER_LLAMA3_70B
+from llmonpy.llm_client import MISTRAL_7B, TOGETHER_QWEN1_5_4B, TOGETHER_LLAMA3_70B, FIREWORKS_LLAMA3_1_8B, \
+    FIREWORKS_LLAMA3_1_405B, FIREWORKS_LLAMA3_1_70B, FIREWORKS_GEMMA2_9B, FIREWORKS_MYTHOMAXL2_13B, FIREWORKS_QWEN2_72B
 from llmonpy.llmonpy_execute import run_step
 from llmonpy.llmonpy_prompt import LLMonPyPrompt, LLMonPyPromptExecutor
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
@@ -58,12 +59,13 @@ class TestLLMonPyPrompt(LLMonPyPrompt):
     def from_dict(self, dict):
         pass
 
+
 if __name__ == "__main__":
     llmonpy_start()
     try:
         print("Running TestLLMonPyPrompt")
-        model_info = LlmModelInfo(MISTRAL_7B.model_name)
-        step = LLMonPyPromptExecutor(TestLLMonPyPrompt("Tom"), model_info)
+        model_info = LlmModelInfo(FIREWORKS_QWEN2_72B.model_name)
+        step = LLMonPyPromptExecutor(TestLLMonPyPrompt("LLMonPy"), model_info)
         result, recorder = run_step(step)
         trace_id = recorder.get_trace_id()
         print(result.to_json())

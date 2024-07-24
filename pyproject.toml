@@ -14,9 +14,9 @@ dependencies = [
     "openai",
     "mistralai",
     "anthropic",
+    "fireworks-ai",
     "nothingpy",
     "jinja2",
-    "sqlalchemy",
     "flask",
     "flask_cors",
     "together"

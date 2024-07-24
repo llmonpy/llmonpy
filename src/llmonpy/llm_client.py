@@ -22,6 +22,7 @@ import time
 from queue import Queue, Empty
 
 import anthropic
+from fireworks.client import Fireworks
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
@@ -35,7 +36,7 @@ from llmonpy.rate_llmiter import RateLlmiter
 
 PROMPT_RETRIES = 5
 RATE_LIMIT_RETRIES = 20
-BASE_RETRY_DELAY = 30 # seconds
+BASE_RETRY_DELAY = 30  # seconds
 DEFAULT_THREAD_POOL_SIZE = 400
 TOKEN_UNIT_FOR_COST = 1000000
 
@@ -47,8 +48,11 @@ OPENAI_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_T
 DEEPSEEK_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 GEMINI_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 TOGETHER_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
+FIREWORKS_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 MISTRAL_RATE_LIMITER = RateLlmiter(1200, 20000000)
 TOGETHER_RATE_LIMITER = RateLlmiter(600, 20000000)
+FIREWORKS_RATE_LIMITER = RateLlmiter(600, 20000000)
+
 
 class LLMonPyNoKeyForApiException(Exception):
     def __init__(self, api_key_name):
@@ -101,7 +105,8 @@ class LlmClientResponse:
 
 
 class LlmClient:
-    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0, price_per_output_token=0.0):
+    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
+                 price_per_output_token=0.0):
         self.model_name = model_name
         self.max_input = max_input
         self.rate_limiter = rate_limiter
@@ -116,7 +121,8 @@ class LlmClient:
     def get_model_name(self):
         return self.model_name
 
-    def prompt(self, prompt_text, system_prompt=Nothing, json_output=False, temp=0.0, max_output=None) -> LlmClientResponse:
+    def prompt(self, prompt_text, system_prompt=Nothing, json_output=False, temp=0.0,
+               max_output=None) -> LlmClientResponse:
         result = None
         self.rate_limiter.get_ticket()
         for attempt in range(RATE_LIMIT_RETRIES):
@@ -128,7 +134,7 @@ class LlmClient:
                 else:
                     break
             except Exception as e:
-                if getattr(e,"status_code", None) is not None and e.status_code == 429:
+                if getattr(e, "status_code", None) is not None and e.status_code == 429:
                     self.rate_limiter.wait_for_ticket_after_rate_limit_exceeded()
                     continue
                 elif getattr(e, "code", None) is not None and e.code == 429:
@@ -151,7 +157,8 @@ class LlmClient:
 
 
 class OpenAIModel(LlmClient):
-    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0, price_per_output_token=0.0):
+    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
+                 price_per_output_token=0.0):
         super().__init__(model_name, max_input, rate_limiter, thead_pool, price_per_input_token, price_per_output_token)
         self.client = Nothing
 
@@ -184,7 +191,8 @@ class OpenAIModel(LlmClient):
                     response_dict = json.loads(response_text)
                 except Exception as e:
                     continue
-            input_cost, output_cost = self.calculate_costs(completion.usage.prompt_tokens, completion.usage.completion_tokens)
+            input_cost, output_cost = self.calculate_costs(completion.usage.prompt_tokens,
+                                                           completion.usage.completion_tokens)
             result = LlmClientResponse(response_text, response_dict, input_cost, output_cost)
         if result is None and json_output:
             raise LlmClientJSONFormatException(response_text)
@@ -192,7 +200,8 @@ class OpenAIModel(LlmClient):
 
 
 class DeepseekModel(LlmClient):
-    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0, price_per_output_token=0.0):
+    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
+                 price_per_output_token=0.0):
         super().__init__(model_name, max_input, rate_limiter, thead_pool, price_per_input_token, price_per_output_token)
         self.client = Nothing
 
@@ -214,7 +223,8 @@ class DeepseekModel(LlmClient):
 
 
 class AnthropicModel(LlmClient):
-    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0, price_per_output_token=0.0):
+    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
+                 price_per_output_token=0.0):
         super().__init__(model_name, max_input, rate_limiter, thead_pool, price_per_input_token, price_per_output_token)
         self.client = Nothing
 
@@ -249,7 +259,7 @@ class AnthropicModel(LlmClient):
             response_dict = Nothing
             if json_output:
                 try:
-                    response_text =  "{ " + response_text
+                    response_text = "{ " + response_text
                     response_text = fix_common_json_encoding_errors(response_text)
                     response_dict = json.loads(response_text)
                 except Exception as e:
@@ -262,7 +272,8 @@ class AnthropicModel(LlmClient):
 
 
 class MistralLlmClient(LlmClient):
-    def __init__(self, model_name, max_input, rate_limiter, thead_pool, price_per_input_token=0.0, price_per_output_token=0.0):
+    def __init__(self, model_name, max_input, rate_limiter, thead_pool, price_per_input_token=0.0,
+                 price_per_output_token=0.0):
         super().__init__(model_name, max_input, rate_limiter, thead_pool, price_per_input_token, price_per_output_token)
         self.client = Nothing
 
@@ -276,7 +287,7 @@ class MistralLlmClient(LlmClient):
         response_format = "json_object" if json_output else "auto"
         prompt_messages = [
             ChatMessage(role="system", content=system_prompt),
-            ChatMessage(role="user",content=prompt_text)
+            ChatMessage(role="user", content=prompt_text)
         ]
         result = None
         response_text = Nothing
@@ -297,7 +308,8 @@ class MistralLlmClient(LlmClient):
                     response_dict = json.loads(response_text)
                 except Exception as e:
                     continue
-            input_cost, output_cost = self.calculate_costs(response.usage.prompt_tokens, response.usage.completion_tokens)
+            input_cost, output_cost = self.calculate_costs(response.usage.prompt_tokens,
+                                                           response.usage.completion_tokens)
             result = LlmClientResponse(response_text, response_dict, input_cost, output_cost)
         if result is None and json_output:
             raise LlmClientJSONFormatException(response_text)
@@ -306,7 +318,8 @@ class MistralLlmClient(LlmClient):
 
 # https://ai.google.dev/gemini-api/docs/get-started/tutorial?authuser=2&lang=python
 class GeminiModel(LlmClient):
-    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0, price_per_output_token=0.0):
+    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
+                 price_per_output_token=0.0):
         super().__init__(model_name, max_input, rate_limiter, thead_pool, price_per_input_token, price_per_output_token)
         self.client = Nothing
 
@@ -314,7 +327,8 @@ class GeminiModel(LlmClient):
         key = get_api_key("GEMINI_API_KEY")
         genai.configure(api_key=key)
         self.client = genai.GenerativeModel(self.model_name)
-        self.json_client = genai.GenerativeModel(self.model_name, generation_config={"response_mime_type": "application/json"})
+        self.json_client = genai.GenerativeModel(self.model_name,
+                                                 generation_config={"response_mime_type": "application/json"})
 
     def do_prompt(self, prompt_text, system_prompt="You are an expert at analyzing text.", json_output=False,
                   temp=0.0, max_output=None):
@@ -325,13 +339,13 @@ class GeminiModel(LlmClient):
         # retries just for json format errors
         for attempt in range(PROMPT_RETRIES):
             model_response = prompt_client.generate_content(full_prompt,
-                                            safety_settings={
-                                                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-                                                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-                                                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-                                                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE
-                                            },
-                                            generation_config=genai.GenerationConfig(temperature=temp))
+                                                            safety_settings={
+                                                                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                                                                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                                                                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+                                                                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE
+                                                            },
+                                                            generation_config=genai.GenerationConfig(temperature=temp))
             response_text = model_response.text
             response_dict = Nothing
             if json_output:
@@ -349,7 +363,8 @@ class GeminiModel(LlmClient):
 
 
 class TogetherAIModel(LlmClient):
-    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0, price_per_output_token=0.0):
+    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
+                 price_per_output_token=0.0):
         super().__init__(model_name, max_input, rate_limiter, thead_pool, price_per_input_token, price_per_output_token)
         self.client = Nothing
 
@@ -379,37 +394,115 @@ class TogetherAIModel(LlmClient):
                 except Exception as e:
                     print("JSON parsing error " + response_text)
                     continue
-            input_cost, output_cost = self.calculate_costs(completion.usage.prompt_tokens, completion.usage.completion_tokens)
+            input_cost, output_cost = self.calculate_costs(completion.usage.prompt_tokens,
+                                                           completion.usage.completion_tokens)
             result = LlmClientResponse(response_text, response_dict, input_cost, output_cost)
         if result is None and json_output:
             raise LlmClientJSONFormatException(response_text)
         return result
 
-#MIXTRAL tokenizer generates 20% more tokens than openai, so after reduce max_input to 80% of openai
+
+class FireworksAIModel(LlmClient):
+    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
+                 price_per_output_token=0.0, system_role_supported=True):
+        super().__init__(model_name, max_input, rate_limiter, thead_pool, price_per_input_token, price_per_output_token)
+        self.client = Nothing
+        self.system_role_supported = system_role_supported
+
+    def start(self):
+        key = get_api_key("FIREWORKS_API_KEY")
+        self.client = Fireworks(api_key=key)
+
+    def do_prompt(self, prompt_text, system_prompt="You are an expert at analyzing text.", json_output=False,
+                  temp=0.0, max_output=None):
+        system_prompt = system_prompt if system_prompt is not Nothing else "You are an expert at analyzing text."
+        result = None
+        response_text = Nothing
+        response_format = "json_object" if json_output else "auto"
+        # retries just for json format errors
+        for attempt in range(PROMPT_RETRIES):
+            if self.system_role_supported:
+                completion = self.client.chat.completions.create(
+                    model=self.model_name,
+                    response_format={"type": response_format},
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt_text}
+                    ],
+                    temperature=temp
+                )
+            else:
+                full_prompt = str(system_prompt) + "\n\n" + prompt_text
+                completion = self.client.chat.completions.create(
+                    model=self.model_name,
+                    response_format={"type": response_format},
+                    messages=[
+                        {"role": "user", "content": full_prompt}
+                    ],
+                    temperature=temp
+                )
+            response_text = completion.choices[0].message.content
+            response_dict = Nothing
+            if json_output:
+                try:
+                    response_text = fix_common_json_encoding_errors(response_text)
+                    response_dict = json.loads(response_text)
+                except Exception as e:
+                    continue
+            input_cost, output_cost = self.calculate_costs(completion.usage.prompt_tokens,
+                                                           completion.usage.completion_tokens)
+            result = LlmClientResponse(response_text, response_dict, input_cost, output_cost)
+        if result is None and json_output:
+            raise LlmClientJSONFormatException(response_text)
+        return result
+
+
+# MIXTRAL tokenizer generates 20% more tokens than openai, so after reduce max_input to 80% of openai
 MISTRAL_7B = MistralLlmClient("open-mistral-7b", 12000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 0.25, 0.25)
 MISTRAL_8X22B = MistralLlmClient("open-mixtral-8x22b", 8000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 2.0, 6.0)
 MISTRAL_SMALL = MistralLlmClient("mistral-small", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 1.0, 3.0)
 MISTRAL_8X7B = MistralLlmClient("open-mixtral-8x7b", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 0.7, 0.7)
 MISTRAL_LARGE = MistralLlmClient("mistral-large-latest", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 4.0, 12.0)
 
-TOGETHER_LLAMA3_70B = TogetherAIModel("meta-llama/Llama-3-70b-chat-hf", 8000, TOGETHER_RATE_LIMITER, TOGETHER_THREAD_POOL, 0.10, 0.10)
-TOGETHER_LLAMA3_1_7B = TogetherAIModel("meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo", 128000, TOGETHER_RATE_LIMITER, TOGETHER_THREAD_POOL, 0.18, 0.18)
-TOGETHER_QWEN1_5_4B = TogetherAIModel("mistralai/Mistral-7B-Instruct-v0.3", 32000, TOGETHER_RATE_LIMITER, TOGETHER_THREAD_POOL, 0.10, 0.10)
+TOGETHER_LLAMA3_70B = TogetherAIModel("meta-llama/Llama-3-70b-chat-hf", 8000, TOGETHER_RATE_LIMITER,
+                                      TOGETHER_THREAD_POOL, 0.10, 0.10)
+TOGETHER_LLAMA3_1_7B = TogetherAIModel("meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo", 128000, TOGETHER_RATE_LIMITER,
+                                       TOGETHER_THREAD_POOL, 0.18, 0.18)
+TOGETHER_QWEN1_5_4B = TogetherAIModel("mistralai/Mistral-7B-Instruct-v0.3", 32000, TOGETHER_RATE_LIMITER,
+                                      TOGETHER_THREAD_POOL, 0.10, 0.10)
 GPT3_5 = OpenAIModel('gpt-3.5-turbo-0125', 15000, RateLlmiter(10000, 2000000), OPENAI_THREAD_POOL, 0.5, 1.5)
 GPT4 = OpenAIModel('gpt-4-turbo-2024-04-09', 120000, RateLlmiter(10000, 2000000), OPENAI_THREAD_POOL, 10.0, 30.0)
 GPT4o = OpenAIModel('gpt-4o', 120000, RateLlmiter(10000, 30000000), OPENAI_THREAD_POOL, 5.0, 15.0)
 GPT4omini = OpenAIModel('gpt-4o-mini', 120000, RateLlmiter(10000, 15000000), OPENAI_THREAD_POOL, 0.15, 0.60)
-ANTHROPIC_OPUS = AnthropicModel("claude-3-opus-20240229", 180000, RateLlmiter(4000, 400000), ANTHROPIC_THREAD_POOL, 15.0, 75.0)
-ANTHROPIC_SONNET = AnthropicModel("claude-3-5-sonnet-20240620", 180000, RateLlmiter(4000, 400000), ANTHROPIC_THREAD_POOL, 3.0, 15.0)
-ANTHROPIC_HAIKU = AnthropicModel("claude-3-haiku-20240307", 180000, RateLlmiter(4000, 400000), ANTHROPIC_THREAD_POOL, 0.25, 1.25)
-#DEEPSEEK = DeepseekModel("deepseek-chat", 24000, RateLlmiter(20, MINUTE_TIME_WINDOW), DEEPSEEK_EXECUTOR)
+ANTHROPIC_OPUS = AnthropicModel("claude-3-opus-20240229", 180000, RateLlmiter(4000, 400000), ANTHROPIC_THREAD_POOL,
+                                15.0, 75.0)
+ANTHROPIC_SONNET = AnthropicModel("claude-3-5-sonnet-20240620", 180000, RateLlmiter(4000, 400000),
+                                  ANTHROPIC_THREAD_POOL, 3.0, 15.0)
+ANTHROPIC_HAIKU = AnthropicModel("claude-3-haiku-20240307", 180000, RateLlmiter(4000, 400000), ANTHROPIC_THREAD_POOL,
+                                 0.25, 1.25)
+# DEEPSEEK = DeepseekModel("deepseek-chat", 24000, RateLlmiter(20, MINUTE_TIME_WINDOW), DEEPSEEK_EXECUTOR)
 GEMINI_FLASH = GeminiModel("gemini-1.5-flash", 120000, RateLlmiter(500, 2000000), GEMINI_THREAD_POOL, 0.35, 1.05)
 GEMINI_PRO = GeminiModel("gemini-1.5-pro", 120000, RateLlmiter(300, 2000000), GEMINI_THREAD_POOL, 3.5, 10.5)
+FIREWORKS_LLAMA3_1_8B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-8b-instruct", 120000,
+                                         FIREWORKS_RATE_LIMITER, FIREWORKS_THREAD_POOL, 0.20, 0.20)
+FIREWORKS_LLAMA3_1_405B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-405b-instruct", 120000,
+                                           FIREWORKS_RATE_LIMITER, FIREWORKS_THREAD_POOL, 3.00, 3.00)
+FIREWORKS_LLAMA3_1_70B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-70b-instruct", 120000,
+                                          FIREWORKS_RATE_LIMITER, FIREWORKS_THREAD_POOL, 0.90, 0.90)
+FIREWORKS_GEMMA2_9B = FireworksAIModel("accounts/fireworks/models/gemma2-9b-it", 7500, FIREWORKS_RATE_LIMITER,
+                                       FIREWORKS_THREAD_POOL, 0.20, 0.20, system_role_supported=False)
+FIREWORKS_MYTHOMAXL2_13B = FireworksAIModel("accounts/fireworks/models/mythomax-l2-13b", 4000, FIREWORKS_RATE_LIMITER,
+                                            FIREWORKS_THREAD_POOL, 0.20, 0.20)
+FIREWORKS_QWEN2_72B = FireworksAIModel("accounts/fireworks/models/qwen2-72b-instruct", 32000, FIREWORKS_RATE_LIMITER,
+                                       FIREWORKS_THREAD_POOL, 0.90, 0.90)
 
 ACTIVE_LLM_CLIENT_DICT = {}
 
-ALL_CLIENT_LIST = [GPT3_5, GPT4, GPT4o, GPT4omini, ANTHROPIC_HAIKU, ANTHROPIC_SONNET, ANTHROPIC_OPUS, MISTRAL_7B, MISTRAL_8X22B,
-                     MISTRAL_SMALL, MISTRAL_8X7B, MISTRAL_LARGE, GEMINI_FLASH, GEMINI_PRO]
+ALL_CLIENT_LIST = [GPT3_5, GPT4, GPT4o, GPT4omini, ANTHROPIC_HAIKU, ANTHROPIC_SONNET, ANTHROPIC_OPUS, MISTRAL_7B,
+                   MISTRAL_8X22B,
+                   MISTRAL_SMALL, MISTRAL_8X7B, MISTRAL_LARGE, GEMINI_FLASH, GEMINI_PRO, FIREWORKS_LLAMA3_1_8B,
+                   FIREWORKS_LLAMA3_1_405B, FIREWORKS_LLAMA3_1_70B, FIREWORKS_GEMMA2_9B, FIREWORKS_MYTHOMAXL2_13B,
+                   FIREWORKS_QWEN2_72B]
 
 
 def add_llm_clients(client_list):
@@ -449,8 +542,8 @@ def get_llm_client(model_name):
 
 
 if __name__ == "__main__":
-    #add_llm_clients([MISTRAL_7B, MISTRAL_8X22B, MISTRAL_SMALL, MISTRAL_8X7B, MISTRAL_LARGE, GPT3_5, GPT4, GPT4o,
-     #                ANTHROPIC_OPUS, ANTHROPIC_SONNET, ANTHROPIC_HAIKU, GEMINI_FLASH, GEMINI_PRO])
+    # add_llm_clients([MISTRAL_7B, MISTRAL_8X22B, MISTRAL_SMALL, MISTRAL_8X7B, MISTRAL_LARGE, GPT3_5, GPT4, GPT4o,
+    #                ANTHROPIC_OPUS, ANTHROPIC_SONNET, ANTHROPIC_HAIKU, GEMINI_FLASH, GEMINI_PRO])
     add_llm_clients([MISTRAL_7B])
 
     TEST_PROMPT = """
@@ -468,8 +561,8 @@ if __name__ == "__main__":
         except Exception as e:
             print("Exception: " + str(e))
             continue
-        print(str(response.response_dict) + " input cost: " + str(response.input_cost) + " output cost: " + str(response.output_cost))
+        print(str(response.response_dict) + " input cost: " + str(response.input_cost) + " output cost: " + str(
+            response.output_cost))
         print("Prompt completed")
     print("All tests completed")
     exit(0)
-

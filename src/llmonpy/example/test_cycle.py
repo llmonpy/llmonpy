@@ -44,7 +44,7 @@ class GenerateNameCycle(LLMonPypeline):
         result_list, _ = cycle.execute_step(recorder)
         for result in result_list:
             print("name:" + result.step_output.name)
-        return result_list.step_output, recorder
+        return result_list[0].step_output, recorder
 
 
 if __name__ == "__main__":
