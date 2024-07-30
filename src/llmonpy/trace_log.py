@@ -445,7 +445,7 @@ class TraceLogRecorder (TraceLogRecorderInterface):
         if self.parent_recorder is None:
             trace_info = TraceInfo(self.trace_data.trace_id, self.trace_data.trace_group_id, self.trace_data.variation_of_trace_id,
                       self.trace_data.step_name, self.trace_data.start_time, end_time, status_code, self.trace_data.cost)
-            self.trace_log_service.record_trace_info(trace_info)
+            self.trace_log_service.flush_trace(trace_info)
 
 
 class TraceLogService:
@@ -467,8 +467,7 @@ class TraceLogService:
         self.event_list = []
         self.tourney_result_list = []
         self.trace_info_list = []
-        self.write_timer = None
-        self.start_timer()
+
 
     def init_event_factory(self):
         subclasses = LLMonPyLogEvent.__subclasses__()
@@ -482,9 +481,6 @@ class TraceLogService:
         return result
 
     def stop(self):
-        if self.write_timer is not None:
-            self.write_timer.cancel()
-            self.write_data()
         self.llmonpy_trace_store.stop()
 
     def create_root_recorder(self, trace_id, trace_group_id, variation_of_trace_id, step) -> TraceLogRecorder:
@@ -498,9 +494,10 @@ class TraceLogService:
                                   None, None, client_info, input_dict, start_time)
         return result
 
-    def record_trace_info(self, trace_info):
+    def flush_trace(self, trace_info):
         with self.write_lock:
             self.trace_info_list.append(trace_info)
+        self.write_data()
 
     def record_step(self, trace_data):
         with self.write_lock:
@@ -537,14 +534,6 @@ class TraceLogService:
             result = self.trace_info_list
             self.trace_info_list = []
         return result
-
-    def start_timer(self):
-        self.write_timer = threading.Timer(interval=1.0, function=self.write_data_and_start_timer)
-        self.write_timer.start()
-
-    def write_data_and_start_timer(self):
-        self.write_data()
-        self.start_timer()
 
     def write_data(self):
         steps_ready_to_write = self.get_and_clear_recorded_steps()

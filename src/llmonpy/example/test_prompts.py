@@ -69,7 +69,6 @@ if __name__ == "__main__":
         result, recorder = run_step(step)
         trace_id = recorder.get_trace_id()
         print(result.to_json())
-        time.sleep(6)
         step_list = trace_log_service().get_steps_for_trace(trace_id)
         for step in step_list:
             print(step.to_json())

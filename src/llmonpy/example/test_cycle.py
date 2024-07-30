@@ -35,7 +35,7 @@ class GenerateNameCycle(LLMonPypeline):
     def execute_step(self, recorder: TraceLogRecorderInterface):
         first_round_list = [GPT4o, GEMINI_PRO, ANTHROPIC_SONNET, GEMINI_FLASH, GPT4omini, FIREWORKS_QWEN2_72B]
         first_round_info_list = make_model_list(ModelTemp(first_round_list, [0.0, 0.75]))
-        aggregate_list = [GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU, FIREWORKS_QWEN2_72B]
+        aggregate_list = [GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET, FIREWORKS_MYTHOMAXL2_13B, ANTHROPIC_HAIKU, FIREWORKS_QWEN2_72B]
         aggregate_info_list = make_model_list(ModelTemp(aggregate_list, [0.0, 0.75]))
         judge_client_info_list = make_model_list(ModelTemp([FIREWORKS_LLAMA3_1_8B, GEMINI_FLASH,
                                                             FIREWORKS_MYTHOMAXL2_13B, GPT4omini,

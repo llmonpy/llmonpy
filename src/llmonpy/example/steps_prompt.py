@@ -175,7 +175,7 @@ class GenerateProjectStepsTourney(LLMonPypeline):
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
         client_list = [GPT4o, GPT4omini, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU]
-        client_info_list = make_model_list(ModelTemp(client_list, 0.0), ModelTemp(client_list,0.5))
+        client_info_list = make_model_list(ModelTemp(client_list, [0.0, 0.5]))
         judge_client_info_list = make_model_list(ModelTemp([GPT4omini, GEMINI_FLASH, MISTRAL_7B, MISTRAL_8X22B,
                                                              ANTHROPIC_HAIKU],0.0))
         generator_prompt = GenerateProjectSteps(self.project_description, self.starting_point, self.test_case)
