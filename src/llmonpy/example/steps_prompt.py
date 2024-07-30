@@ -11,7 +11,7 @@ from llmonpy.llmonpy_execute import do_llmonpy_step, run_step
 from llmonpy.llmonpy_step import TraceLogRecorderInterface, LLMONPY_OUTPUT_FORMAT_JSON, LlmModelInfo, make_model_list, \
     ModelTemp
 from llmonpy.llmonpy_tournament import TournamentJudgePrompt, LLMonPyTournament, AdaptiveICLCycle
-from llmonpy.llmonpy_prompt import LLMonPyPrompt, LLMonPyPromptExecutor
+from llmonpy.llmonpy_prompt import LLMonPyPrompt, LLMonPyPromptRunner
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
 
 
@@ -208,7 +208,7 @@ class GenerateProjectStepsCycle(LLMonPypeline):
 def run_prompt(project_description, starting_point, test_case):
     print("run prompt")
     model_info = LlmModelInfo(MISTRAL_7B.model_name)
-    step = LLMonPyPromptExecutor(GenerateProjectSteps(project_description, starting_point, test_case), model_info)
+    step = LLMonPyPromptRunner(GenerateProjectSteps(project_description, starting_point, test_case), model_info)
     result, recorder = run_step(step)
     print(result.to_json())
 

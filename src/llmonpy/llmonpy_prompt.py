@@ -25,7 +25,7 @@ from llmonpy.trace_log import LlmModelInfo
 DEFAULT_OUTPUT_DICT_KEY = "response_string"
 
 
-class LLMonPyPrompt(LLMonPyStep):
+class LLMonPyPrompt:
     class LLMonPyOutput(LLMonPyStepOutput):
         def __init__(self):
             pass
@@ -56,6 +56,10 @@ class LLMonPyPrompt(LLMonPyStep):
         result = get_step_name_from_class_hierarchy(self.__class__)
         return result
 
+    def get_short_step_name(self):
+        result = self.__class__.__name__
+        return result
+
     def to_dict(self):
         result = copy.deepcopy(vars(self))
         return result
@@ -74,7 +78,7 @@ class LLMonPyPrompt(LLMonPyStep):
 
 
 # make different evaluators if they handle errors different
-class LLMonPyPromptExecutor(LLMonPyStep):
+class LLMonPyPromptRunner(LLMonPyStep):
     def __init__(self, prompt: LLMonPyPrompt, llm_model_info: LlmModelInfo):
         self.llm_model_info = llm_model_info
         self.prompt = prompt
@@ -135,7 +139,7 @@ class LLMonPyPromptExecutor(LLMonPyStep):
 def create_prompt_steps(prompt, model_info_list: [LlmModelInfo]):
     result = []
     for model_info in model_info_list:
-        result.append(LLMonPyPromptExecutor(prompt, model_info))
+        result.append(LLMonPyPromptRunner(prompt, model_info))
     return result
 
 
