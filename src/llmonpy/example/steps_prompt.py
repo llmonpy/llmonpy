@@ -7,7 +7,7 @@ from llmonpy.jsony import jsony_to_json
 from llmonpy.llm_client import MISTRAL_7B, filter_clients_that_didnt_start, GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, \
     ANTHROPIC_SONNET, ANTHROPIC_HAIKU, MISTRAL_8X22B, GPT4omini
 from llmonpy.llmon_pypeline import LLMonPypeline
-from llmonpy.llmonpy_execute import do_llmonpy_step, run_step
+from llmonpy.llmonpy_execute import run_step
 from llmonpy.llmonpy_step import TraceLogRecorderInterface, LLMONPY_OUTPUT_FORMAT_JSON, LlmModelInfo, make_model_list, \
     ModelTemp
 from llmonpy.llmonpy_tournament import TournamentJudgePrompt, LLMonPyTournament, AdaptiveICLCycle
@@ -184,8 +184,8 @@ class GenerateProjectStepsTourney(LLMonPypeline):
                                                              ANTHROPIC_HAIKU],0.0))
         generator_prompt = GenerateProjectSteps(self.project_description, self.starting_point, self.test_case)
         judgement_prompt = GenerateProjectSteps.JudgePrompt(generator_prompt)
-        tournament = LLMonPyTournament(generator_prompt, client_info_list, judgement_prompt, judge_client_info_list).create_step()
-        result_list, _ = do_llmonpy_step(tournament, recorder)
+        tournament = LLMonPyTournament(generator_prompt, client_info_list, judgement_prompt, judge_client_info_list).create_step(recorder)
+        result_list, _ = tournament.record_step()
         return result_list[0].step_output, recorder
 
 
@@ -208,29 +208,29 @@ class GenerateProjectStepsCycle(LLMonPypeline):
         generator_prompt = GenerateProjectSteps(self.project_description, self.starting_point, self.test_case)
         judgement_prompt = GenerateProjectSteps.JudgePrompt(generator_prompt)
         cycle = AdaptiveICLCycle(generator_prompt, client_info_list, judgement_prompt,
-                                 judge_client_info_list, 5, 3).create_step()
-        result_list, _ = cycle.execute_step(recorder)
+                                 judge_client_info_list, 5, 3).create_step(recorder)
+        result_list, _ = cycle.record_step()
         return result_list[0], recorder
 
 
 def run_prompt(project_description, starting_point, test_case):
     print("run prompt")
     model_info = LlmModelInfo(MISTRAL_7B.model_name)
-    step = LLMonPyPromptRunner(GenerateProjectSteps(project_description, starting_point, test_case), model_info)
+    step = LLMonPyPromptRunner(None, GenerateProjectSteps(project_description, starting_point, test_case), model_info)
     result, recorder = run_step(step)
     print(result.to_json())
 
 
 def run_tourney(project_description, starting_point, test_case):
     print("Running tourney...")
-    step = GenerateProjectStepsTourney(project_description, starting_point, test_case).create_step()
+    step = GenerateProjectStepsTourney(project_description, starting_point, test_case).create_step(None)
     result, recorder = run_step(step)
     print(result.to_json())
 
 
 def run_cycle(project_description, starting_point, test_case):
     print("Running cycle...")
-    step = GenerateProjectStepsCycle(project_description, starting_point, test_case).create_step()
+    step = GenerateProjectStepsCycle(project_description, starting_point, test_case).create_step(None)
     result, recorder = run_step(step)
     print(result.to_json())
 

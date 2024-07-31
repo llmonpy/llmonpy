@@ -30,9 +30,15 @@ class SystemServices:
         self.config = config
         self.add_service_to_stop(config)
 
+    def get_config(self):
+        return self.config
+
     def set_trace_log_service(self, trace_log_service):
         self.trace_log_service = trace_log_service
         self.add_service_to_stop(trace_log_service)
+
+    def get_trace_log_service(self):
+        return self.trace_log_service
 
     def add_service_to_stop(self, service):
         self.services_to_stop.append(service)
@@ -46,5 +52,7 @@ class SystemServices:
 def init_system_services():
     SystemServices()
 
+
 def system_services() -> SystemServices:
-    return SystemServices._instance
+    result = SystemServices._instance
+    return result

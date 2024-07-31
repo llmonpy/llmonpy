@@ -2,6 +2,7 @@ import copy
 
 from llmonpy.llmonpy_step import LLMonPyStep, TraceLogRecorderInterface, STEP_TYPE_PYPELINE, \
     get_step_name_from_class_hierarchy
+from llmonpy.trace_log import trace_log_service
 
 
 class LLMonPypeline:
@@ -26,13 +27,18 @@ class LLMonPypeline:
         result = copy.copy(vars(self))
         return result
 
-    def create_step(self):
-        return LLMonPypelineRunner(self)
+    def create_step(self, parent_recorder: TraceLogRecorderInterface):
+        return LLMonPypelineRunner(parent_recorder, self)
 
 
 class LLMonPypelineRunner(LLMonPyStep):
-    def __init__(self, pypeline: LLMonPypeline):
+    def __init__(self, parent_recorder: TraceLogRecorderInterface, pypeline: LLMonPypeline):
+        super().__init__()
         self.pypeline = pypeline
+        if parent_recorder is None:
+            self.recorder = trace_log_service().create_root_recorder(None, None, None, self)
+        else:
+            self.recorder = parent_recorder.create_child_recorder(self)
 
     def get_step_name(self):
         return self.pypeline.get_step_name()
@@ -46,12 +52,12 @@ class LLMonPypelineRunner(LLMonPyStep):
         result.update(super_result)
         return result
 
-    def execute_step(self, recorder: TraceLogRecorderInterface):
+    def execute_step(self):
         result = None
         try:
-            result, _ = self.pypeline.execute_step(recorder)
+            result, _ = self.pypeline.execute_step(self.get_recorder())
         except Exception as e:
-            recorder.log_exception(e)
+            self.get_recorder().log_exception(e)
             raise e
-        return result, recorder
+        return result, self.get_recorder()
 

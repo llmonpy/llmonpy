@@ -1,6 +1,5 @@
 from llmonpy.llmon_pypeline import LLMonPypeline
 from llmonpy.llmonpy_step import STEP_TYPE_GAR, TraceLogRecorderInterface, JudgedOutput
-from llmonpy.llmonpy_execute import do_llmonpy_step
 from llmonpy.llmonpy_tournament import TournamentGenerator, RankOutputStep
 
 
@@ -31,19 +30,20 @@ class GenerateAggregateRankStep(LLMonPypeline):
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
         judged_output_list: [JudgedOutput] = []
-        generate_step = TournamentGenerator(self.generation_prompt, self.generation_model_info_list).create_step()
-        judged_output_list, _ = do_llmonpy_step(generate_step, recorder)
+        generate_step = TournamentGenerator(self.generation_prompt, self.generation_model_info_list).create_step(recorder)
+        judged_output_list, _ = generate_step.record_step()
         step_output_list = [judged_output.step_output for judged_output in judged_output_list]
         recorder.set_step_examples(self.generation_prompt.get_step_name(), step_output_list)
         for i in range(0, self.repeat_aggregation_layer):
-            generate_step = TournamentGenerator(self.generation_prompt, self.aggregation_model_info_list).create_step()
-            judged_output_list, _ = do_llmonpy_step(generate_step, recorder)
+            generate_step = TournamentGenerator(self.generation_prompt, self.aggregation_model_info_list).create_step(recorder)
+            judged_output_list, _ = generate_step.record_step()
             step_output_list = [judged_output.step_output for judged_output in judged_output_list]
             recorder.set_step_examples(self.generation_prompt.get_step_name(), step_output_list)
+        print("ranking")
         if self.judgement_prompt is not None:
             rank_step = RankOutputStep(self.generation_prompt.get_short_step_name(), judged_output_list,
-                                       self.judgement_prompt, self.judgement_model_info_list).create_step()
-            result_output_list, step_recorder = do_llmonpy_step(rank_step, recorder)
+                                       self.judgement_prompt, self.judgement_model_info_list).create_step(recorder)
+            result_output_list, step_recorder = rank_step.record_step()
         else:
             result_output_list = step_output_list
         return result_output_list, recorder

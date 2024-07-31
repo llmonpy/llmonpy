@@ -46,8 +46,8 @@ class GenerateNameCycle(LLMonPypeline):
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt)
         cycle = AdaptiveICLCycle(generator_prompt, aggregate_info_list, judgement_prompt,
-                                 judge_client_info_list, 5, 2, first_round_info_list).create_step()
-        result_list, _ = cycle.execute_step(recorder)
+                                 judge_client_info_list, 5, 2, first_round_info_list).create_step(recorder)
+        result_list, _ = cycle.record_step()
         for result in result_list:
             print("name:" + result.step_output.name)
         return result_list[0].step_output, recorder
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     llmonpy_start()
     print("Running Test Cycle")
     try:
-        step = GenerateNameCycle().create_step()
+        step = GenerateNameCycle().create_step(None)
         result, recorder = run_step(step)
         print(result.to_json())
     except Exception as e:

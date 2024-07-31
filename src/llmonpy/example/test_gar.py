@@ -46,8 +46,8 @@ class GenerateNameGar(LLMonPypeline):
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt)
         cycle = GenerateAggregateRankStep(generator_prompt, generate_info_list, aggregate_info_list,4,
-                                           judgement_prompt, judge_client_info_list).create_step()
-        result_list, _ = cycle.execute_step(recorder)
+                                           judgement_prompt, judge_client_info_list).create_step(recorder)
+        result_list, _ = cycle.record_step()
         for result in result_list:
             print("name:" + result.step_output.name)
         return result_list[0].step_output, recorder
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     llmonpy_start()
     print("Running Test Gar")
     try:
-        step = GenerateNameGar().create_step()
+        step = GenerateNameGar().create_step(None)
         result, recorder = run_step(step)
         print(result.to_json())
     except Exception as e:

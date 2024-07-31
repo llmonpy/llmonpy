@@ -20,7 +20,7 @@ from nothingpy import Nothing
 
 from llmonpy.llmonpy_step import *
 from llmonpy.llm_client import LlmClient
-from llmonpy.trace_log import LlmModelInfo
+from llmonpy.trace_log import LlmModelInfo, trace_log_service
 
 DEFAULT_OUTPUT_DICT_KEY = "response_string"
 
@@ -79,10 +79,15 @@ class LLMonPyPrompt:
 
 # make different evaluators if they handle errors different
 class LLMonPyPromptRunner(LLMonPyStep):
-    def __init__(self, prompt: LLMonPyPrompt, llm_model_info: LlmModelInfo):
+    def __init__(self, parent_recorder: TraceLogRecorderInterface, prompt: LLMonPyPrompt, llm_model_info: LlmModelInfo):
+        super().__init__()
         self.llm_model_info = llm_model_info
         self.prompt = prompt
         self.template = Template(prompt.get_prompt_text())
+        if parent_recorder is None:
+            self.recorder = trace_log_service().create_root_recorder(None, None, None, self)
+        else:
+            self.recorder = parent_recorder.create_child_recorder(self)
 
     def get_thread_pool(self) -> concurrent.futures.ThreadPoolExecutor:
         result = self.get_llm_client().get_thread_pool()
@@ -111,7 +116,8 @@ class LLMonPyPromptRunner(LLMonPyStep):
         result = self.llm_model_info
         return result
 
-    def execute_step(self, recorder: TraceLogRecorderInterface):
+    def execute_step(self):
+        recorder = self.get_recorder()
         prompt_dict = recorder.get_input_dict()
         recorder.log_prompt_template(self.prompt.get_prompt_text())
         prompt_text = self.template.render(prompt_dict)
@@ -128,7 +134,7 @@ class LLMonPyPromptRunner(LLMonPyStep):
                     result = self.prompt.output_from_string(response.response_text)
                 break
             except Exception as e:
-                recorder.log_exception(e)
+                recorder.record_exception(e)
                 if i == 2:
                     raise e
                 else:
@@ -136,10 +142,10 @@ class LLMonPyPromptRunner(LLMonPyStep):
         return result, recorder
 
 
-def create_prompt_steps(prompt, model_info_list: [LlmModelInfo]):
+def create_prompt_steps(parent_recorder: TraceLogRecorderInterface, prompt: LLMonPyPrompt, model_info_list: [LlmModelInfo]):
     result = []
     for model_info in model_info_list:
-        result.append(LLMonPyPromptRunner(prompt, model_info))
+        result.append(LLMonPyPromptRunner(parent_recorder, prompt, model_info))
     return result
 
 

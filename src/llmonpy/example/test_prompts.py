@@ -65,7 +65,7 @@ if __name__ == "__main__":
     try:
         print("Running TestLLMonPyPrompt")
         model_info = LlmModelInfo(FIREWORKS_QWEN2_72B.model_name)
-        step = LLMonPyPromptRunner(TestLLMonPyPrompt("LLMonPy"), model_info)
+        step = LLMonPyPromptRunner(None, TestLLMonPyPrompt("LLMonPy"), model_info)
         result, recorder = run_step(step)
         trace_id = recorder.get_trace_id()
         print(result.to_json())

@@ -13,17 +13,16 @@
 #   COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 #   OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+from llmonpy.system_services import init_system_services, system_services
+
 
 def llmonpy_start():
-    from llmonpy.system_services import init_system_services
     from llmonpy.config import init_llmonpy
     from llmonpy.trace_log import init_trace_log_service
-
     init_system_services()
     init_llmonpy()
     init_trace_log_service()
 
 
 def llmonpy_stop():
-    from llmonpy.system_services import system_services
     system_services().stop()

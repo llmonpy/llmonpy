@@ -32,22 +32,22 @@ def llmonpy_cli():
             print("running prompt test")
             model_list = get_active_llm_clients()
             model_info = LlmModelInfo(model_list[0].model_name)
-            step = LLMonPyPromptRunner(TestLLMonPyPrompt("LLMonPy"), model_info)
+            step = LLMonPyPromptRunner(None, TestLLMonPyPrompt("LLMonPy"), model_info)
             result, recorder = run_step(step)
             print(result.to_json())
         elif args.function == 'tourney':
             print("running tourney test")
-            step = GenerateNamePypeline().create_step()
+            step = GenerateNamePypeline().create_step(None)
             result, recorder = run_step(step)
             print(result.to_json())
         elif args.function == 'cycle':
             print("running cycle test")
-            step = GenerateNameCycle().create_step()
+            step = GenerateNameCycle().create_step(None)
             result, recorder = run_step(step)
             print(result.to_json())
         elif args.function == 'gar':
             print("running gar test")
-            step = GenerateNameGar().create_step()
+            step = GenerateNameGar().create_step(None)
             result, recorder = run_step(step)
             print(result.to_json())
         elif args.function == 'qbawa_list':

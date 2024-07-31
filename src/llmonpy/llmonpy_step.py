@@ -20,7 +20,6 @@ import uuid
 from llmonpy.llm_client import get_llm_client, LlmClient, filter_clients_that_didnt_start
 from llmonpy.config import llmonpy_config
 
-
 LLMONPY_OUTPUT_FORMAT_JSON = "json"
 LLMONPY_OUTPUT_FORMAT_TEXT = "text"
 EXAMPLE_LIST_KEY = "example_list"
@@ -173,6 +172,9 @@ class TourneyResultInterface:
 
 class TraceLogRecorderInterface:
 
+    def start_step(self):
+        raise NotImplementedError()
+
     def get_step_id(self):
         raise NotImplementedError()
 
@@ -221,13 +223,33 @@ class TraceLogRecorderInterface:
     def record_tourney_result(self, contestant_list: [LLMonPyStepOutput], tourney_result):
         raise NotImplementedError()
 
-    def finish_child_step(self, output_dict, status_code=STEP_STATUS_SUCCESS,
-                          cost=None):
+    def finish_step(self, output_dict, status_code=STEP_STATUS_SUCCESS,
+                    cost=None):
         raise NotImplementedError()
 
 
 class LLMonPyStep:
-    def execute_step(self, recorder: TraceLogRecorderInterface) -> (LLMonPyStepOutput, TraceLogRecorderInterface):
+    def __init__(self):
+        self.recorder: TraceLogRecorderInterface = None
+
+    def get_recorder(self) -> TraceLogRecorderInterface:
+        return self.recorder
+
+    def start_step(self):
+        self.recorder.start_step()
+
+    def record_step(self):
+        self.start_step()
+        try:
+            result, _ = self.execute_step()
+            self.recorder.finish_step(result)
+        except Exception as e:
+            self.recorder.record_exception(e)
+            self.recorder.finish_step(None, status_code=STEP_STATUS_FAILURE)
+            raise e
+        return result, self.recorder
+
+    def execute_step(self) -> (LLMonPyStepOutput, TraceLogRecorderInterface):
         raise NotImplementedError()
 
     def get_thread_pool(self) -> concurrent.futures.ThreadPoolExecutor:

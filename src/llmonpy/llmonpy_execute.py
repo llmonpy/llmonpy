@@ -56,43 +56,6 @@ class FutureStepList:
         return result_list
 
 
-def do_llmonpy_step(step: LLMonPyStep, recorder: TraceLogRecorderInterface, child_recorder=None):
-    child_recorder = recorder.create_child_recorder(step) if child_recorder is None else child_recorder
-    try:
-        result, recorder_result = step.execute_step(child_recorder)
-        child_recorder.finish_child_step(result)
-    except Exception as e:
-        child_recorder.record_exception(e)
-        child_recorder.finish_child_step(None, status_code=STEP_STATUS_FAILURE)
-        raise e
-    return result, recorder_result
-
-
-def do_llmonpy_parallel_step(step: LLMonPyStep, recorder: TraceLogRecorderInterface):
-    child_recorder = recorder.create_child_recorder(step)
-    future = step.get_thread_pool().submit(do_llmonpy_step, step, recorder, child_recorder)
-    return future, child_recorder
-
-
-def do_step_list_wait(step_list:[LLMonPyStep], recorder: TraceLogRecorderInterface):
-    future_step_list = do_step_list_no_wait(step_list, recorder)
-    result = future_step_list.wait()
-    return result
-
-def do_step_list_no_wait(step_list:[LLMonPyStep], recorder: TraceLogRecorderInterface):
-    result = FutureStepList()
-    for step in step_list:
-        future, child_recorder = do_llmonpy_parallel_step(step, recorder)
-        result.add_future_step(FutureStepList.FutureStep(future, child_recorder))
-    return result
-
-
 def run_step(step):
-    trace_id = str(uuid.uuid4())
-    result = None
-    try:
-        recorder = trace_log_service().create_root_recorder(trace_id, trace_id, None, step)
-        result, _ = step.execute_step(recorder)
-    finally:
-        recorder.finish_child_step(result)
-    return result, recorder
+    result, _ = step.record_step()
+    return result, step.get_recorder()

@@ -373,6 +373,7 @@ class TraceLogRecorder (TraceLogRecorderInterface):
         self.trace_log_service.record_event(event)
 
     def log_exception(self, exception):
+        print("exception: " + str(exception))
         event = LLMonPyLogException.from_exception(self.trace_data.trace_id, self.trace_data.step_id, exception)
         self.trace_log_service.record_event(event)
 
@@ -390,18 +391,20 @@ class TraceLogRecorder (TraceLogRecorderInterface):
         with self.recorder_lock:
             self.trace_data.cost += cost
 
+    def start_step(self):
+        self.trace_data.start_time = datetime.now()
+        self.trace_data.step_index = self.get_next_step_index()
+
     def create_child_recorder(self, step):
         input_dict = step.get_input_dict(self)
         client_info = step.get_llm_model_info()
         step_id = str(uuid.uuid4())
-        step_index = self.get_next_step_index()
-        start_time = datetime.now()
         root_recorder = self.root_recorder if self.root_recorder is not None else self
         result = TraceLogRecorder(self.trace_log_service, root_recorder, self, self.trace_data.trace_id,
                                   self.trace_data.trace_group_id, self.trace_data.variation_of_trace_id, step_id,
-                                  step_index, step, self.trace_data.root_step_id,
+                                  None, step, self.trace_data.root_step_id,
                                   self.trace_data.root_step_name, self.trace_data.step_id, self.trace_data.step_name,
-                                  client_info, input_dict, start_time)
+                                  client_info, input_dict, None)
         return result
 
     def record_exception(self, exception):
@@ -426,8 +429,8 @@ class TraceLogRecorder (TraceLogRecorderInterface):
         tourney_result.contestant_list = contestant_list
         self.trace_log_service.record_tourney_result(tourney_result)
            
-    def finish_child_step(self, output_dict, status_code=STEP_STATUS_SUCCESS,
-                          cost=None):
+    def finish_step(self, output_dict, status_code=STEP_STATUS_SUCCESS,
+                    cost=None):
         if cost is not None:
             self.add_to_cost(cost)
         end_time = datetime.now()
@@ -484,6 +487,8 @@ class TraceLogService:
         self.llmonpy_trace_store.stop()
 
     def create_root_recorder(self, trace_id, trace_group_id, variation_of_trace_id, step) -> TraceLogRecorder:
+        trace_id = trace_id if trace_id is not None else str(uuid.uuid4())
+        trace_group_id = trace_group_id if trace_group_id is not None else trace_id
         root_step_id = str(uuid.uuid4())
         start_time = datetime.now()
         input_dict = step.get_input_dict(None)

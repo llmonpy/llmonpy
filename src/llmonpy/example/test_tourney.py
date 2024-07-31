@@ -20,7 +20,7 @@ from llmonpy.llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, A
     ANTHROPIC_HAIKU, \
     MISTRAL_8X22B, ANTHROPIC_OPUS, filter_clients_that_didnt_start, GPT4omini, MISTRAL_SMALL
 from llmonpy.llmon_pypeline import LLMonPypeline
-from llmonpy.llmonpy_execute import do_llmonpy_step, run_step
+from llmonpy.llmonpy_execute import run_step
 from llmonpy.llmonpy_step import TraceLogRecorderInterface, LLMONPY_OUTPUT_FORMAT_JSON, ModelTemp, make_model_list
 from llmonpy.llmonpy_tournament import LLMonPyTournament, TournamentJudgePrompt
 from llmonpy.llmonpy_prompt import create_prompt_steps, LLMonPyPrompt
@@ -153,8 +153,8 @@ class GenerateNamePypeline(LLMonPypeline):
                                                             MISTRAL_SMALL, ANTHROPIC_HAIKU],0.0))
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt)
-        tournament = LLMonPyTournament(generator_prompt, client_info_list, judgement_prompt, judge_client_info_list).create_step()
-        result_list, _ = do_llmonpy_step(tournament, recorder)
+        tournament = LLMonPyTournament(generator_prompt, client_info_list, judgement_prompt, judge_client_info_list).create_step(recorder)
+        result_list, _ = tournament.record_step()
         for result in result_list:
             print("name:" + result.step_output.name + " score: " + str(result.victory_count))
         return result_list[0].step_output, recorder
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     llmonpy_start()
     print("Running Test Tourney")
     try:
-        step = GenerateNamePypeline().create_step()
+        step = GenerateNamePypeline().create_step(None)
         result, recorder = run_step(step)
         print(result.to_json())
     except Exception as e:
