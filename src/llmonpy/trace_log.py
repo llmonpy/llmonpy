@@ -540,7 +540,10 @@ class TraceLogService:
         if len(steps_ready_to_write) > 0:
             with open(self.step_file_path, "a") as file:
                 for step in steps_ready_to_write:
-                    file.write(step.to_json() + "\n")
+                    try:
+                        file.write(step.to_json() + "\n")
+                    except Exception as e:
+                        print("Error writing step: " + str(e))
             self.llmonpy_trace_store.insert_step_records(steps_ready_to_write)
         events_ready_to_write = self.get_and_clear_recorded_events()
         if len(events_ready_to_write) > 0:

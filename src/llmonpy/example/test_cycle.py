@@ -32,10 +32,13 @@ class GenerateNameCycle(LLMonPypeline):
     def __init__(self):
         pass
 
+    def get_input_dict(self, recorder: TraceLogRecorderInterface):
+        return {}
+
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        first_round_list = [GPT4o, GEMINI_PRO, ANTHROPIC_SONNET, GEMINI_FLASH, GPT4omini, FIREWORKS_QWEN2_72B]
+        first_round_list = [ANTHROPIC_SONNET, GEMINI_FLASH, GPT4omini, FIREWORKS_QWEN2_72B]
         first_round_info_list = make_model_list(ModelTemp(first_round_list, [0.0, 0.75]))
-        aggregate_list = [GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET, FIREWORKS_MYTHOMAXL2_13B, ANTHROPIC_HAIKU, FIREWORKS_QWEN2_72B]
+        aggregate_list = [GPT4omini, GEMINI_FLASH, FIREWORKS_MYTHOMAXL2_13B, ANTHROPIC_HAIKU, FIREWORKS_QWEN2_72B]
         aggregate_info_list = make_model_list(ModelTemp(aggregate_list, [0.0, 0.75]))
         judge_client_info_list = make_model_list(ModelTemp([FIREWORKS_LLAMA3_1_8B, GEMINI_FLASH,
                                                             FIREWORKS_MYTHOMAXL2_13B, GPT4omini,
@@ -43,7 +46,7 @@ class GenerateNameCycle(LLMonPypeline):
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt)
         cycle = AdaptiveICLCycle(generator_prompt, aggregate_info_list, judgement_prompt,
-                                 judge_client_info_list, 5, 2, first_round_info_list)
+                                 judge_client_info_list, 5, 2, first_round_info_list).create_step()
         result_list, _ = cycle.execute_step(recorder)
         for result in result_list:
             print("name:" + result.step_output.name)
@@ -54,7 +57,7 @@ if __name__ == "__main__":
     llmonpy_start()
     print("Running Test Cycle")
     try:
-        step = GenerateNameCycle()
+        step = GenerateNameCycle().create_step()
         result, recorder = run_step(step)
         print(result.to_json())
     except Exception as e:

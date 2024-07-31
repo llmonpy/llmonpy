@@ -55,6 +55,10 @@ To test the tourneys, you can use the following command (it will cost about $0.0
 ```bash	
 llmonpy tourney
 ```
+Note: If you are using google clients, you will get this error message: "WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1722383946.306228 139136289 config.cc:230] gRPC experiments enabled: call_status", followed by 10ish lines of
+error messages. This is apparently a [bug in the gRPC client](https://github.com/grpc/grpc/issues/37222), but
+it does not seem to affect the results.<br>
 
 To test the AdaptiveICLCycle, you can use the following command (it will cost about $0.9 or less):
 ```bash

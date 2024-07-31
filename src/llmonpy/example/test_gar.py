@@ -33,17 +33,20 @@ class GenerateNameGar(LLMonPypeline):
     def __init__(self):
         pass
 
+    def get_input_dict(self, recorder: TraceLogRecorderInterface):
+        return {}
+
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        generate_list = [GPT4o, GEMINI_PRO, ANTHROPIC_SONNET, GEMINI_FLASH, GPT4omini, FIREWORKS_QWEN2_72B]
-        generate_info_list = make_model_list(ModelTemp(generate_list, [0.0, 0.75]))
-        aggregate_list = [GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET, FIREWORKS_MYTHOMAXL2_13B, ANTHROPIC_HAIKU]
-        aggregate_info_list = make_model_list(ModelTemp(aggregate_list, [0.0, 0.25, 0.5, 0.75]))
+        generate_list = [ANTHROPIC_SONNET, GEMINI_FLASH, GPT4omini, FIREWORKS_QWEN2_72B]
+        generate_info_list = make_model_list(ModelTemp(generate_list, [0.0]))
+        aggregate_list = [GPT4omini, GEMINI_FLASH, FIREWORKS_MYTHOMAXL2_13B, ANTHROPIC_HAIKU]
+        aggregate_info_list = make_model_list(ModelTemp(aggregate_list, [0.0, 0.5]))
         judge_client_info_list = make_model_list(ModelTemp([FIREWORKS_MYTHOMAXL2_13B, GEMINI_FLASH, FIREWORKS_LLAMA3_1_8B, GPT4omini,
                                                              ANTHROPIC_HAIKU],0.0))
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt)
         cycle = GenerateAggregateRankStep(generator_prompt, generate_info_list, aggregate_info_list,4,
-                                           judgement_prompt, judge_client_info_list)
+                                           judgement_prompt, judge_client_info_list).create_step()
         result_list, _ = cycle.execute_step(recorder)
         for result in result_list:
             print("name:" + result.step_output.name)
@@ -54,7 +57,7 @@ if __name__ == "__main__":
     llmonpy_start()
     print("Running Test Gar")
     try:
-        step = GenerateNameGar()
+        step = GenerateNameGar().create_step()
         result, recorder = run_step(step)
         print(result.to_json())
     except Exception as e:

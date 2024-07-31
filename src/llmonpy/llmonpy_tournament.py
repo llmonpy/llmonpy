@@ -105,7 +105,7 @@ class TournamentGenerator(LLMonPypeline):
         return output_list, recorder
 
 
-class CompareOutputStep(LLMonPyStep):
+class CompareOutputStep(LLMonPypeline):
     class LLMonPyOutput(LLMonPyPrompt.LLMonPyOutput):
         def __init__(self, output_1_id: str, output_2_id: str, winner_id: str, dissent_count: int = 0):
             self.output_1_id: str = output_1_id
@@ -167,7 +167,7 @@ class CompareOutputStep(LLMonPyStep):
         return result, recorder
 
 
-class RankOutputStep(LLMonPyStep):
+class RankOutputStep(LLMonPypeline):
     def __init__(self, contestant_step_name, contestant_list: [JudgedOutput], judgement_prompt, judgement_model_info_list):
         self.contestant_step_name = contestant_step_name
         self.contestant_list = contestant_list
@@ -194,7 +194,7 @@ class RankOutputStep(LLMonPyStep):
         while start_index < (number_of_contestants - 1):
             for i in range(start_index + 1, number_of_contestants):
                 contest_list.append(CompareOutputStep(self.contestant_list[start_index], self.contestant_list[i],
-                                                      self.judgement_prompt, self.judgement_model_info_list))
+                                                      self.judgement_prompt, self.judgement_model_info_list).create_step())
             start_index += 1
         future_list = []
         print("number of contests " + str(len(contest_list)))
@@ -243,10 +243,10 @@ class LLMonPyTournament(LLMonPypeline):
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
         output_list: [JudgedOutput] = []
-        generate_step = TournamentGenerator(self.generation_prompt, self.generation_model_info_list)
+        generate_step = TournamentGenerator(self.generation_prompt, self.generation_model_info_list).create_step()
         output_list, _ = do_llmonpy_step(generate_step, recorder)
         rank_step = RankOutputStep(self.generation_prompt.get_short_step_name(), output_list, self.judgement_prompt,
-                                   self.judgement_model_info_list)
+                                   self.judgement_model_info_list).create_step()
         ordered_output_list, step_recorder = do_llmonpy_step(rank_step, recorder)
         return ordered_output_list, recorder
 
@@ -276,14 +276,26 @@ class AdaptiveICLCycle(LLMonPypeline):
     def get_step_type(self) -> str:
         return STEP_TYPE_CYCLE
 
+    def get_input_dict(self, recorder: TraceLogRecorderInterface):
+        generation_model_info_list = [model_info.to_dict() for model_info in self.generation_model_info_list]
+        judgement_model_info_list = [model_info.to_dict() for model_info in self.judgement_model_info_list]
+        first_round_model_info_list = [model_info.to_dict() for model_info in self.first_round_model_info_list]
+        result = {"generation_prompt": self.generation_prompt.get_prompt_text(),
+                  "generation_model_info_list": generation_model_info_list,
+                  "judgement_prompt": self.judgement_prompt.get_prompt_text(),
+                  "judgement_model_info_list": judgement_model_info_list,
+                  "first_round_model_info_list": first_round_model_info_list,
+                  "number_of_examples": self.number_of_examples, "max_cycles": self.max_cycles}
+        return result
+
     def execute_step(self, recorder: TraceLogRecorderInterface):
         tournament = LLMonPyTournament(self.generation_prompt, self.first_round_model_info_list,
-                                       self.judgement_prompt, self.judgement_model_info_list)
+                                       self.judgement_prompt, self.judgement_model_info_list).create_step()
         first_round_result_list, _ = do_llmonpy_step(tournament, recorder)
         self.update_example_list(first_round_result_list, recorder)
         for i in range(1, self.max_cycles):
             tournament = LLMonPyTournament(self.generation_prompt, self.generation_model_info_list,
-                                           self.judgement_prompt, self.judgement_model_info_list)
+                                           self.judgement_prompt, self.judgement_model_info_list).create_step()
             recorder.set_step_examples(self.generation_prompt_name, self.get_example_output_list())
             result_list, _ = do_llmonpy_step(tournament, recorder)
             if i  < self.max_cycles - 1:
@@ -313,7 +325,7 @@ class AdaptiveICLCycle(LLMonPypeline):
             for judged_output in full_list:
                 judged_output.reset_victory_count()
             rank_step = RankOutputStep(self.generation_prompt.get_short_step_name(), full_list, self.judgement_prompt,
-                                       self.judgement_model_info_list)
+                                       self.judgement_model_info_list).create_step()
             ordered_list, step_recorder = do_llmonpy_step(rank_step, recorder)
             self.example_list = ordered_list[0:self.number_of_examples]
             new_champion = self.example_list[0].output_id != current_champion.output_id

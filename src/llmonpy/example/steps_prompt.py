@@ -173,6 +173,10 @@ class GenerateProjectStepsTourney(LLMonPypeline):
         self.starting_point = starting_point
         self.test_case = test_case
 
+    def get_input_dict(self, recorder: TraceLogRecorderInterface):
+        return { "project_description": self.project_description, "starting_point": self.starting_point,
+                 "test_case": self.test_case }
+
     def execute_step(self, recorder: TraceLogRecorderInterface):
         client_list = [GPT4o, GPT4omini, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU]
         client_info_list = make_model_list(ModelTemp(client_list, [0.0, 0.5]))
@@ -180,7 +184,7 @@ class GenerateProjectStepsTourney(LLMonPypeline):
                                                              ANTHROPIC_HAIKU],0.0))
         generator_prompt = GenerateProjectSteps(self.project_description, self.starting_point, self.test_case)
         judgement_prompt = GenerateProjectSteps.JudgePrompt(generator_prompt)
-        tournament = LLMonPyTournament(generator_prompt, client_info_list, judgement_prompt, judge_client_info_list)
+        tournament = LLMonPyTournament(generator_prompt, client_info_list, judgement_prompt, judge_client_info_list).create_step()
         result_list, _ = do_llmonpy_step(tournament, recorder)
         return result_list[0].step_output, recorder
 
@@ -192,6 +196,10 @@ class GenerateProjectStepsCycle(LLMonPypeline):
         self.starting_point = starting_point
         self.test_case = test_case
 
+    def get_input_dict(self, recorder: TraceLogRecorderInterface):
+        return { "project_description": self.project_description, "starting_point": self.starting_point,
+                 "test_case": self.test_case }
+
     def execute_step(self, recorder: TraceLogRecorderInterface):
         client_list = [GPT4o, GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU]
         client_info_list = make_model_list(ModelTemp(client_list, 0.0), ModelTemp(client_list,0.5))
@@ -200,7 +208,7 @@ class GenerateProjectStepsCycle(LLMonPypeline):
         generator_prompt = GenerateProjectSteps(self.project_description, self.starting_point, self.test_case)
         judgement_prompt = GenerateProjectSteps.JudgePrompt(generator_prompt)
         cycle = AdaptiveICLCycle(generator_prompt, client_info_list, judgement_prompt,
-                                 judge_client_info_list, 5, 3)
+                                 judge_client_info_list, 5, 3).create_step()
         result_list, _ = cycle.execute_step(recorder)
         return result_list[0], recorder
 
@@ -215,14 +223,14 @@ def run_prompt(project_description, starting_point, test_case):
 
 def run_tourney(project_description, starting_point, test_case):
     print("Running tourney...")
-    step = GenerateProjectStepsTourney(project_description, starting_point, test_case)
+    step = GenerateProjectStepsTourney(project_description, starting_point, test_case).create_step()
     result, recorder = run_step(step)
     print(result.to_json())
 
 
 def run_cycle(project_description, starting_point, test_case):
     print("Running cycle...")
-    step = GenerateProjectStepsCycle(project_description, starting_point, test_case)
+    step = GenerateProjectStepsCycle(project_description, starting_point, test_case).create_step()
     result, recorder = run_step(step)
     print(result.to_json())
 

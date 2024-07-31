@@ -462,7 +462,7 @@ MISTRAL_7B = MistralLlmClient("open-mistral-7b", 12000, MISTRAL_RATE_LIMITER, MI
 MISTRAL_8X22B = MistralLlmClient("open-mixtral-8x22b", 8000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 2.0, 6.0)
 MISTRAL_SMALL = MistralLlmClient("mistral-small", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 1.0, 3.0)
 MISTRAL_8X7B = MistralLlmClient("open-mixtral-8x7b", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 0.7, 0.7)
-MISTRAL_LARGE = MistralLlmClient("mistral-large-latest", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 4.0, 12.0)
+MISTRAL_LARGE = MistralLlmClient("mistral-large-2407", 120000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 4.0, 12.0)
 
 TOGETHER_LLAMA3_70B = TogetherAIModel("meta-llama/Llama-3-70b-chat-hf", 8000, TOGETHER_RATE_LIMITER,
                                       TOGETHER_THREAD_POOL, 0.10, 0.10)

@@ -13,6 +13,7 @@
 #   COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 #   OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 import copy
+import traceback
 import uuid
 
 from llmonpy.llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, \
@@ -142,6 +143,9 @@ class GenerateNamePypeline(LLMonPypeline):
     def __init__(self):
         pass
 
+    def get_input_dict(self, recorder: TraceLogRecorderInterface):
+        return {}
+
     def execute_step(self, recorder: TraceLogRecorderInterface):
         client_list = [GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU]
         client_info_list = make_model_list(ModelTemp(client_list, [0.0, 0.5]))
@@ -149,7 +153,7 @@ class GenerateNamePypeline(LLMonPypeline):
                                                             MISTRAL_SMALL, ANTHROPIC_HAIKU],0.0))
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt)
-        tournament = LLMonPyTournament(generator_prompt, client_info_list, judgement_prompt, judge_client_info_list)
+        tournament = LLMonPyTournament(generator_prompt, client_info_list, judgement_prompt, judge_client_info_list).create_step()
         result_list, _ = do_llmonpy_step(tournament, recorder)
         for result in result_list:
             print("name:" + result.step_output.name + " score: " + str(result.victory_count))
@@ -160,10 +164,12 @@ if __name__ == "__main__":
     llmonpy_start()
     print("Running Test Tourney")
     try:
-        step = GenerateNamePypeline()
+        step = GenerateNamePypeline().create_step()
         result, recorder = run_step(step)
         print(result.to_json())
     except Exception as e:
+        stack_trace = traceback.format_exc()
+        print(stack_trace)
         print(str(e))
     finally:
         llmonpy_stop()

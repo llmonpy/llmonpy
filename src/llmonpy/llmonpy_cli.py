@@ -37,17 +37,17 @@ def llmonpy_cli():
             print(result.to_json())
         elif args.function == 'tourney':
             print("running tourney test")
-            step = GenerateNamePypeline()
+            step = GenerateNamePypeline().create_step()
             result, recorder = run_step(step)
             print(result.to_json())
         elif args.function == 'cycle':
             print("running cycle test")
-            step = GenerateNameCycle()
+            step = GenerateNameCycle().create_step()
             result, recorder = run_step(step)
             print(result.to_json())
         elif args.function == 'gar':
             print("running gar test")
-            step = GenerateNameGar()
+            step = GenerateNameGar().create_step()
             result, recorder = run_step(step)
             print(result.to_json())
         elif args.function == 'qbawa_list':
