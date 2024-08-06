@@ -4,8 +4,10 @@ import json
 import uuid
 
 from llmonpy.jsony import jsony_to_json
-from llmonpy.llm_client import MISTRAL_7B, filter_clients_that_didnt_start, GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, \
-    ANTHROPIC_SONNET, ANTHROPIC_HAIKU, MISTRAL_8X22B, GPT4omini
+from llmonpy.llm_client import MISTRAL_7B, filter_clients_that_didnt_start, GPT4o, MISTRAL_LARGE, GEMINI_PRO, \
+    GEMINI_FLASH, \
+    ANTHROPIC_SONNET, ANTHROPIC_HAIKU, MISTRAL_8X22B, GPT4omini, MISTRAL_NEMO_12B, FIREWORKS_MYTHOMAXL2_13B, \
+    FIREWORKS_LLAMA3_1_8B
 from llmonpy.llmon_pypeline import LLMonPypeline
 from llmonpy.llmonpy_execute import run_step
 from llmonpy.llmonpy_step import TraceLogRecorderInterface, LLMONPY_OUTPUT_FORMAT_JSON, LlmModelInfo, make_model_list, \
@@ -178,10 +180,10 @@ class GenerateProjectStepsTourney(LLMonPypeline):
                  "test_case": self.test_case }
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        client_list = [GPT4o, GPT4omini, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU]
+        client_list = [GPT4o, GPT4omini, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_NEMO_12B, ANTHROPIC_HAIKU]
         client_info_list = make_model_list(ModelTemp(client_list, [0.0, 0.5]))
-        judge_client_info_list = make_model_list(ModelTemp([GPT4omini, GEMINI_FLASH, MISTRAL_7B, MISTRAL_8X22B,
-                                                             ANTHROPIC_HAIKU],0.0))
+        judge_client_info_list = make_model_list(ModelTemp([GPT4omini, GEMINI_FLASH, FIREWORKS_LLAMA3_1_8B,
+                                                            FIREWORKS_MYTHOMAXL2_13B, ANTHROPIC_HAIKU],0.0))
         generator_prompt = GenerateProjectSteps(self.project_description, self.starting_point, self.test_case)
         judgement_prompt = GenerateProjectSteps.JudgePrompt(generator_prompt)
         tournament = LLMonPyTournament(generator_prompt, client_info_list, judgement_prompt, judge_client_info_list).create_step(recorder)
@@ -201,10 +203,10 @@ class GenerateProjectStepsCycle(LLMonPypeline):
                  "test_case": self.test_case }
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        client_list = [GPT4o, GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU]
+        client_list = [GPT4o, GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_NEMO_12B, ANTHROPIC_HAIKU]
         client_info_list = make_model_list(ModelTemp(client_list, 0.0), ModelTemp(client_list,0.5))
-        judge_client_info_list = make_model_list(ModelTemp([GPT4omini, GEMINI_FLASH, MISTRAL_7B, MISTRAL_8X22B,
-                                                             ANTHROPIC_HAIKU],0.0))
+        judge_client_info_list = make_model_list(ModelTemp([GPT4omini, GEMINI_FLASH, FIREWORKS_LLAMA3_1_8B,
+                                                            FIREWORKS_MYTHOMAXL2_13B, ANTHROPIC_HAIKU],0.0))
         generator_prompt = GenerateProjectSteps(self.project_description, self.starting_point, self.test_case)
         judgement_prompt = GenerateProjectSteps.JudgePrompt(generator_prompt)
         cycle = AdaptiveICLCycle(generator_prompt, client_info_list, judgement_prompt,

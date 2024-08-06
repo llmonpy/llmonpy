@@ -63,7 +63,7 @@ class TournamentJudgePrompt(LLMonPyPrompt):
         return result
 
 
-class TournamentGenerator(LLMonPypeline):
+class TournamentResponseGenerator(LLMonPypeline):
     def __init__(self, generation_prompt, generation_model_info_list):
         self.generation_prompt = generation_prompt
         self.generation_model_info_list = generation_model_info_list
@@ -244,7 +244,7 @@ class LLMonPyTournament(LLMonPypeline):
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
         output_list: [JudgedOutput] = []
-        generate_step = TournamentGenerator(self.generation_prompt, self.generation_model_info_list).create_step(recorder)
+        generate_step = TournamentResponseGenerator(self.generation_prompt, self.generation_model_info_list).create_step(recorder)
         output_list, _ = generate_step.record_step()
         rank_step = RankOutputStep(self.generation_prompt.get_short_step_name(), output_list, self.judgement_prompt,
                                    self.judgement_model_info_list).create_step(recorder)

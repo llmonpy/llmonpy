@@ -49,8 +49,10 @@ class LLMonPyConnectionPool:
         self.available_connections.put(connection)
 
     def dispose(self):
+        print("closing sqlite connections")
         for connection in self.connection_list:
             connection.close()
+        print("done closing sqlite connections")
 
     class ConnectionContextManager:
         def __init__(self, pool):

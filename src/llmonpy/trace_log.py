@@ -328,6 +328,7 @@ class TraceLogRecorder (TraceLogRecorderInterface):
                  parent_step_name, client_info, input_dict=None, start_time=None):
         self.trace_log_service = trace_log_service
         self.step = step
+        self.step_output = None
         self.trace_data = StepTraceData(trace_id, trace_group_id, variation_of_trace_id, step_id, step_index,
                                         step.get_step_name(), step.get_step_type(),
                                         root_step_id, root_step_name, parent_step_id, parent_step_name, client_info,
@@ -429,18 +430,19 @@ class TraceLogRecorder (TraceLogRecorderInterface):
         tourney_result.contestant_list = contestant_list
         self.trace_log_service.record_tourney_result(tourney_result)
            
-    def finish_step(self, output_dict, status_code=STEP_STATUS_SUCCESS,
+    def finish_step(self, step_output: LLMonPyStepOutput, status_code=STEP_STATUS_SUCCESS,
                     cost=None):
         if cost is not None:
             self.add_to_cost(cost)
         end_time = datetime.now()
         self.trace_data.end_time = end_time
-        if isinstance(output_dict, list):
-            dict_list = [output.to_dict() for output in output_dict]
+        self.step_output = step_output
+        if isinstance(step_output, list):
+            dict_list = [output.to_dict() for output in step_output]
             list_output = {"output_list": dict_list}
             self.trace_data.output_dict = list_output
         else:
-            output_dict = output_dict.to_dict() if output_dict is not None else None
+            output_dict = step_output.to_dict() if step_output is not None else None
             self.trace_data.output_dict = output_dict
         self.trace_data.output_format = self.step.get_output_format()
         self.trace_data.status_code = status_code
@@ -449,6 +451,9 @@ class TraceLogRecorder (TraceLogRecorderInterface):
             trace_info = TraceInfo(self.trace_data.trace_id, self.trace_data.trace_group_id, self.trace_data.variation_of_trace_id,
                       self.trace_data.step_name, self.trace_data.start_time, end_time, status_code, self.trace_data.cost)
             self.trace_log_service.flush_trace(trace_info)
+
+    def get_step_output(self) -> LLMonPyStepOutput:
+        return self.step_output
 
 
 class TraceLogService:

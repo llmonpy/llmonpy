@@ -227,6 +227,9 @@ class TraceLogRecorderInterface:
                     cost=None):
         raise NotImplementedError()
 
+    def get_step_output(self) -> LLMonPyStepOutput:
+        raise NotImplementedError()
+
 
 class LLMonPyStep:
     def __init__(self):
@@ -234,6 +237,12 @@ class LLMonPyStep:
 
     def get_recorder(self) -> TraceLogRecorderInterface:
         return self.recorder
+
+    def get_step_output(self):
+        result = None
+        if self.recorder is not None:
+            result = self.recorder.get_step_output()
+        return result
 
     def start_step(self):
         self.recorder.start_step()
