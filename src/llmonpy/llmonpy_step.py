@@ -239,9 +239,11 @@ class LLMonPyStep:
         return self.recorder
 
     def get_step_output(self):
-        result = None
-        if self.recorder is not None:
-            result = self.recorder.get_step_output()
+        result = self.recorder.get_step_output()
+        return result
+
+    def get_step_id(self):
+        result = self.recorder.get_step_id()
         return result
 
     def start_step(self):
@@ -250,13 +252,13 @@ class LLMonPyStep:
     def record_step(self):
         self.start_step()
         try:
-            result, _ = self.execute_step()
+            result = self.execute_step()
             self.recorder.finish_step(result)
         except Exception as e:
             self.recorder.record_exception(e)
             self.recorder.finish_step(None, status_code=STEP_STATUS_FAILURE)
             raise e
-        return result, self.recorder
+        return self
 
     def execute_step(self) -> (LLMonPyStepOutput, TraceLogRecorderInterface):
         raise NotImplementedError()
@@ -284,7 +286,7 @@ class LLMonPyStep:
             result = {}
         return result
 
-    def get_llm_model_info(self):
+    def get_model_info(self):
         return None
 
     def get_output_format(self):
@@ -292,5 +294,9 @@ class LLMonPyStep:
 
 
 
-
+def step_to_judeged_output(step_list:[LLMonPyStep]) -> [JudgedOutput]:
+    result = []
+    for step in step_list:
+        result.append(JudgedOutput(step.get_step_id(), step.get_step_output(), step.get_model_info()))
+    return result
 

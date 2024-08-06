@@ -12,6 +12,7 @@
 #   WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
 #   COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 #   OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+import copy
 import os
 import uuid
 import time
@@ -22,7 +23,7 @@ from llmonpy.llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, A
     FIREWORKS_MYTHOMAXL2_13B, FIREWORKS_LLAMA3_1_8B
 from llmonpy.llmon_pypeline import LLMonPypeline
 from llmonpy.llmonpy_execute import run_step
-from llmonpy.llmonpy_step import TraceLogRecorderInterface, make_model_list, ModelTemp
+from llmonpy.llmonpy_step import TraceLogRecorderInterface, make_model_list, ModelTemp, LLMonPyStepOutput
 from llmonpy.llmonpy_tournament import AdaptiveICLCycle
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
 from llmonpy.example.test_tourney import NameIterativeRefinementTournamentPrompt
@@ -30,6 +31,16 @@ from llmonpy.llmonpy_gar import GenerateAggregateRankStep
 
 
 class GenerateNameGar(LLMonPypeline):
+
+    class LLMonPyOutput(LLMonPyStepOutput):
+        def __init__(self, name=None):
+            super().__init__()
+            self.name = name
+
+        def to_dict(self):
+            result = copy.deepcopy(vars(self))
+            return result
+
     def __init__(self):
         pass
 
@@ -47,10 +58,12 @@ class GenerateNameGar(LLMonPypeline):
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt)
         cycle = GenerateAggregateRankStep(generator_prompt, generate_info_list, aggregate_info_list,4,
                                            judgement_prompt, judge_client_info_list).create_step(recorder)
-        result_list, _ = cycle.record_step()
-        for result in result_list:
+        cycle.record_step()
+        ordered_response_list = cycle.get_step_output().ordered_response_list
+        for result in ordered_response_list:
             print("name:" + result.step_output.name)
-        return result_list[0].step_output, recorder
+        result = GenerateNameGar.LLMonPyOutput(ordered_response_list[0].step_output.name)
+        return result
 
 
 if __name__ == "__main__":
@@ -58,7 +71,7 @@ if __name__ == "__main__":
     print("Running Test Gar")
     try:
         step = GenerateNameGar().create_step(None)
-        result, recorder = run_step(step)
+        result = run_step(step)
         print(result.to_json())
     except Exception as e:
         print(str(e))

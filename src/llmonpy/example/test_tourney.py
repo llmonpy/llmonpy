@@ -21,7 +21,8 @@ from llmonpy.llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, A
     MISTRAL_8X22B, ANTHROPIC_OPUS, filter_clients_that_didnt_start, GPT4omini, MISTRAL_SMALL
 from llmonpy.llmon_pypeline import LLMonPypeline
 from llmonpy.llmonpy_execute import run_step
-from llmonpy.llmonpy_step import TraceLogRecorderInterface, LLMONPY_OUTPUT_FORMAT_JSON, ModelTemp, make_model_list
+from llmonpy.llmonpy_step import TraceLogRecorderInterface, LLMONPY_OUTPUT_FORMAT_JSON, ModelTemp, make_model_list, \
+    LLMonPyStepOutput
 from llmonpy.llmonpy_tournament import LLMonPyTournament, TournamentJudgePrompt
 from llmonpy.llmonpy_prompt import create_prompt_steps, LLMonPyPrompt
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
@@ -140,6 +141,16 @@ class NameIterativeRefinementTournamentPrompt(LLMonPyPrompt):
 
 
 class GenerateNamePypeline(LLMonPypeline):
+
+    class LLMonPyOutput(LLMonPyStepOutput):
+        def __init__(self, name=None):
+            super().__init__()
+            self.name = name
+
+        def to_dict(self):
+            result = copy.deepcopy(vars(self))
+            return result
+
     def __init__(self):
         pass
 
@@ -154,10 +165,12 @@ class GenerateNamePypeline(LLMonPypeline):
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt)
         tournament = LLMonPyTournament(generator_prompt, client_info_list, judgement_prompt, judge_client_info_list).create_step(recorder)
-        result_list, _ = tournament.record_step()
+        tournament.record_step()
+        result_list = tournament.get_step_output().ordered_response_list
         for result in result_list:
             print("name:" + result.step_output.name + " score: " + str(result.victory_count))
-        return result_list[0].step_output, recorder
+        result = GenerateNamePypeline.LLMonPyOutput(result_list[0].step_output.name)
+        return result
 
 
 if __name__ == "__main__":
@@ -165,7 +178,8 @@ if __name__ == "__main__":
     print("Running Test Tourney")
     try:
         step = GenerateNamePypeline().create_step(None)
-        result, recorder = run_step(step)
+        step.record_step()
+        result = step.get_step_output()
         print(result.to_json())
     except Exception as e:
         stack_trace = traceback.format_exc()

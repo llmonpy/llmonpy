@@ -187,8 +187,9 @@ class GenerateProjectStepsTourney(LLMonPypeline):
         generator_prompt = GenerateProjectSteps(self.project_description, self.starting_point, self.test_case)
         judgement_prompt = GenerateProjectSteps.JudgePrompt(generator_prompt)
         tournament = LLMonPyTournament(generator_prompt, client_info_list, judgement_prompt, judge_client_info_list).create_step(recorder)
-        result_list, _ = tournament.record_step()
-        return result_list[0].step_output, recorder
+        tournament.record_step()
+        result_list = tournament.get_step_output().ordered_response_list
+        return result_list[0].step_output
 
 
 class GenerateProjectStepsCycle(LLMonPypeline):
@@ -211,29 +212,30 @@ class GenerateProjectStepsCycle(LLMonPypeline):
         judgement_prompt = GenerateProjectSteps.JudgePrompt(generator_prompt)
         cycle = AdaptiveICLCycle(generator_prompt, client_info_list, judgement_prompt,
                                  judge_client_info_list, 5, 3).create_step(recorder)
-        result_list, _ = cycle.record_step()
-        return result_list[0], recorder
+        cycle.record_step()
+        result_list = cycle.get_step_output().ordered_response_list
+        return result_list[0].step_output
 
 
 def run_prompt(project_description, starting_point, test_case):
     print("run prompt")
     model_info = LlmModelInfo(MISTRAL_7B.model_name)
     step = LLMonPyPromptRunner(None, GenerateProjectSteps(project_description, starting_point, test_case), model_info)
-    result, recorder = run_step(step)
+    result = run_step(step)
     print(result.to_json())
 
 
 def run_tourney(project_description, starting_point, test_case):
     print("Running tourney...")
     step = GenerateProjectStepsTourney(project_description, starting_point, test_case).create_step(None)
-    result, recorder = run_step(step)
+    result = run_step(step)
     print(result.to_json())
 
 
 def run_cycle(project_description, starting_point, test_case):
     print("Running cycle...")
     step = GenerateProjectStepsCycle(project_description, starting_point, test_case).create_step(None)
-    result, recorder = run_step(step)
+    result = run_step(step)
     print(result.to_json())
 
 

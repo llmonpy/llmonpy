@@ -398,7 +398,7 @@ class TraceLogRecorder (TraceLogRecorderInterface):
 
     def create_child_recorder(self, step):
         input_dict = step.get_input_dict(self)
-        client_info = step.get_llm_model_info()
+        client_info = step.get_model_info()
         step_id = str(uuid.uuid4())
         root_recorder = self.root_recorder if self.root_recorder is not None else self
         result = TraceLogRecorder(self.trace_log_service, root_recorder, self, self.trace_data.trace_id,
@@ -498,7 +498,7 @@ class TraceLogService:
         start_time = datetime.now()
         input_dict = step.get_input_dict(None)
         step_name = step.get_step_name()
-        client_info = step.get_llm_model_info()
+        client_info = step.get_model_info()
         result = TraceLogRecorder(self, None, None, trace_id, trace_group_id,
                                   variation_of_trace_id, root_step_id, 0, step, root_step_id, step_name,
                                   None, None, client_info, input_dict, start_time)

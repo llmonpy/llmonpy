@@ -33,22 +33,22 @@ def llmonpy_cli():
             model_list = get_active_llm_clients()
             model_info = LlmModelInfo(model_list[0].model_name)
             step = LLMonPyPromptRunner(None, TestLLMonPyPrompt("LLMonPy"), model_info)
-            result, recorder = run_step(step)
+            result = run_step(step)
             print(result.to_json())
         elif args.function == 'tourney':
             print("running tourney test")
             step = GenerateNamePypeline().create_step(None)
-            result, recorder = run_step(step)
+            result = run_step(step)
             print(result.to_json())
         elif args.function == 'cycle':
             print("running cycle test")
             step = GenerateNameCycle().create_step(None)
-            result, recorder = run_step(step)
+            result = run_step(step)
             print(result.to_json())
         elif args.function == 'gar':
             print("running gar test")
             step = GenerateNameGar().create_step(None)
-            result, recorder = run_step(step)
+            result = run_step(step)
             print(result.to_json())
         elif args.function == 'qbawa_list':
             step_name_list = trace_log_service().get_tourney_step_name_list()

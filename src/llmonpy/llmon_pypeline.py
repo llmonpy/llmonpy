@@ -55,9 +55,9 @@ class LLMonPypelineRunner(LLMonPyStep):
     def execute_step(self):
         result = None
         try:
-            result, _ = self.pypeline.execute_step(self.get_recorder())
+            result = self.pypeline.execute_step(self.get_recorder())
         except Exception as e:
             self.get_recorder().log_exception(e)
             raise e
-        return result, self.get_recorder()
+        return result
 

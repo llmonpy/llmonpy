@@ -112,7 +112,7 @@ class LLMonPyPromptRunner(LLMonPyStep):
         result = self.llm_model_info.get_llm_client()
         return result
 
-    def get_llm_model_info(self):
+    def get_model_info(self):
         result = self.llm_model_info
         return result
 
@@ -139,7 +139,7 @@ class LLMonPyPromptRunner(LLMonPyStep):
                     raise e
                 else:
                     continue
-        return result, recorder
+        return result
 
 
 def create_prompt_steps(parent_recorder: TraceLogRecorderInterface, prompt: LLMonPyPrompt, model_info_list: [LlmModelInfo]):

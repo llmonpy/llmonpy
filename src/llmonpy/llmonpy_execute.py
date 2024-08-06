@@ -57,5 +57,6 @@ class FutureStepList:
 
 
 def run_step(step):
-    result, _ = step.record_step()
-    return result, step.get_recorder()
+    step.record_step()
+    result = step.get_step_output()
+    return result
