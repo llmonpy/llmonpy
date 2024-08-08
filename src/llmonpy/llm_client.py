@@ -482,8 +482,8 @@ ANTHROPIC_SONNET = AnthropicModel("claude-3-5-sonnet-20240620", 180000, RateLlmi
 ANTHROPIC_HAIKU = AnthropicModel("claude-3-haiku-20240307", 180000, RateLlmiter(4000, 400000), ANTHROPIC_THREAD_POOL,
                                  0.25, 1.25)
 # DEEPSEEK = DeepseekModel("deepseek-chat", 24000, RateLlmiter(20, MINUTE_TIME_WINDOW), DEEPSEEK_EXECUTOR)
-GEMINI_FLASH = GeminiModel("gemini-1.5-flash", 120000, RateLlmiter(500, 2000000), GEMINI_THREAD_POOL, 0.35, 1.05)
-GEMINI_PRO = GeminiModel("gemini-1.5-pro", 120000, RateLlmiter(300, 2000000), GEMINI_THREAD_POOL, 3.5, 10.5)
+GEMINI_FLASH = GeminiModel("gemini-1.5-flash", 120000, RateLlmiter(1000, 4000000), GEMINI_THREAD_POOL, 0.075, .15)
+GEMINI_PRO = GeminiModel("gemini-1.5-pro", 120000, RateLlmiter(360, 4000000), GEMINI_THREAD_POOL, 3.5, 10.5)
 FIREWORKS_LLAMA3_1_8B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-8b-instruct", 120000,
                                          FIREWORKS_RATE_LIMITER, FIREWORKS_THREAD_POOL, 0.20, 0.20)
 FIREWORKS_LLAMA3_1_405B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-405b-instruct", 120000,

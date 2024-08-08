@@ -14,6 +14,8 @@
 #   OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 import concurrent
 import json
+import random
+import time
 
 from jinja2 import Template
 from nothingpy import Nothing
@@ -75,6 +77,11 @@ class LLMonPyPrompt:
     def output_from_dict(self, output_dict):
         result = self.LLMonPyOutput.from_dict(output_dict)
         return result
+
+
+class JudgePrompt(LLMonPyPrompt):
+    def __init__(self):
+        super().__init__()
 
 
 # make different evaluators if they handle errors different

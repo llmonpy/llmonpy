@@ -18,13 +18,13 @@ import json
 import uuid
 
 from llmonpy.llmon_pypeline import LLMonPypeline
-from llmonpy.llmonpy_prompt import LLMonPyPrompt, create_prompt_steps
+from llmonpy.llmonpy_prompt import LLMonPyPrompt, create_prompt_steps, JudgePrompt
 from llmonpy.llmonpy_step import LLMonPyStep, LLMonPyStepOutput, TraceLogRecorderInterface, STEP_NAME_SEPARATOR, \
     DictLLMonPyStepOutput, JudgedOutput, STEP_TYPE_TOURNEY, STEP_TYPE_CYCLE, STEP_TYPE_JUDGE, STEP_TYPE_RANKER, \
     STEP_TYPE_JURY, STEP_TYPE_GENERATOR
 
 
-class TournamentJudgePrompt(LLMonPyPrompt):
+class TournamentJudgePrompt(JudgePrompt):
     class LLMonPyOutput(LLMonPyPrompt.LLMonPyOutput):
         def __init__(self, winner: int):
             self.winner: int = winner
@@ -94,7 +94,7 @@ class TournamentResponseGenerator(LLMonPypeline):
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
         self.contestant_list = create_prompt_steps(recorder, self.generation_prompt, self.generation_model_info_list)
-        self.run_parallel_steps_with_retry(self.contestant_list, handle_result_function=self.record_output)
+        self.run_parallel_steps(self.contestant_list, handle_result_function=self.record_output)
         result = TournamentResponseGenerator.LLMonPyOutput(self.output_list)
         return result
 
@@ -147,7 +147,7 @@ class CompareOutputStep(LLMonPypeline):
         self.judge_list = create_prompt_steps(recorder, self.judgement_prompt, self.judgement_model_info_list)
         for judge in self.judge_list:
             judge.get_prompt().set_contestants(self.output_1.step_output, self.output_2.step_output)
-        self.run_parallel_steps_with_retry(self.judge_list, handle_result_function=self.record_victory)
+        self.run_parallel_steps(self.judge_list, handle_result_function=self.record_victory)
         if self.contestant_1_victory_count > self.contestant_2_victory_count:
             self.winner = self.output_1
             self.dissent_count = self.contestant_2_victory_count
@@ -210,7 +210,7 @@ class RankOutputStep(LLMonPypeline):
                                                       self.judgement_prompt, self.judgement_model_info_list).create_step(recorder))
             start_index += 1
         print("number of contests " + str(len(contest_list)))
-        self.run_parallel_steps_with_retry(contest_list, handle_result_function=self.record_victory)
+        self.run_parallel_steps(contest_list, handle_result_function=self.record_victory)
         ordered_contestant_list = sorted(self.contestant_list, key=lambda x: x.victory_count, reverse=True)
         recorder.record_tourney_result(ordered_contestant_list, self.tourney_result)
         result = OrderedStepOutputList(ordered_contestant_list)

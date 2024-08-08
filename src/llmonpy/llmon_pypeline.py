@@ -37,7 +37,9 @@ class LLMonPypeline:
 
     # step are returned in the order they complete, not the order they were submitted.  Also, if a step timesout, it
     # will be retried once.  If it fails again, it will not be included in the result list.
-    def run_parallel_steps_with_retry(self, step_list, timeout_time=DEFAULT_TIMEOUT_TIME, handle_result_function=None):
+    # this does not work because the TimeoutError is caught at the highest level, not at the level the exception is
+    # thrown.
+    '''def run_parallel_steps_with_retry(self, step_list, timeout_time=DEFAULT_TIMEOUT_TIME, handle_result_function=None):
         future_list = []
         result_dict = {}
         timeout_exception = None
@@ -50,7 +52,7 @@ class LLMonPypeline:
                 result_dict[returned_step.get_step_id()] = returned_step
                 if handle_result_function is not None:
                     handle_result_function(returned_step)
-            except concurrent.futures.TimeoutError as te:
+            except TimeoutError as te:
                 timeout_exception = te
                 print("TimeoutError")
             except Exception as e:
@@ -75,6 +77,24 @@ class LLMonPypeline:
                 except Exception as e:
                     print(str(e))
                     pass
+        result_list = list(result_dict.values())
+        return result_list'''
+
+    def run_parallel_steps(self, step_list, handle_result_function=None):
+        future_list = []
+        result_dict = {}
+        for step in step_list:
+            future = step.get_thread_pool().submit(step.record_step)
+            future_list.append(future)
+        for future in concurrent.futures.as_completed(future_list):
+            try:
+                returned_step = future.result()
+                result_dict[returned_step.get_step_id()] = returned_step
+                if handle_result_function is not None:
+                    handle_result_function(returned_step)
+            except Exception as e:
+                print(str(e)) # exception was logged in record_step
+                pass
         result_list = list(result_dict.values())
         return result_list
 
