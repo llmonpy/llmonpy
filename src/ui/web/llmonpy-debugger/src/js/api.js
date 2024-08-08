@@ -214,7 +214,7 @@ export class ModelReport {
       }
       for (let step of flattendStepList) {
         if (step.step_type == "ranker") {
-          const outputList = step.output_dict.output_list;
+          const outputList = step.output_dict.ordered_response_list;
           for (const judgedOutput of outputList) {
             const judgedStep = stepIdMap.get(judgedOutput.step_id);
             if ( judgedStep != null) { // would be null if the parent step was a ranker step, generation happened elsewhere
