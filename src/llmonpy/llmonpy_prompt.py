@@ -82,7 +82,7 @@ class LLMonPyPromptRunner(LLMonPyStep):
     def __init__(self, parent_recorder: TraceLogRecorderInterface, prompt: LLMonPyPrompt, llm_model_info: LlmModelInfo):
         super().__init__()
         self.llm_model_info = llm_model_info
-        self.prompt = prompt
+        self.prompt = copy.deepcopy(prompt)
         self.template = Template(prompt.get_prompt_text())
         if parent_recorder is None:
             self.recorder = trace_log_service().create_root_recorder(None, None, None, self)

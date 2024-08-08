@@ -41,23 +41,19 @@ class GenerateNameGar(LLMonPypeline):
             result = copy.deepcopy(vars(self))
             return result
 
-    def __init__(self):
-        pass
+    def __init__(self, generate_info_list=None, aggregate_info_list=None, judge_client_info_list=None):
+        self.generate_info_list = generate_info_list if generate_info_list is not None else make_model_list(ModelTemp([ANTHROPIC_SONNET, GEMINI_FLASH, GPT4omini, FIREWORKS_QWEN2_72B], [0.0]))
+        self.aggregate_info_list = aggregate_info_list if aggregate_info_list is not None else make_model_list(ModelTemp([GPT4omini, GEMINI_FLASH, FIREWORKS_MYTHOMAXL2_13B, ANTHROPIC_HAIKU, FIREWORKS_QWEN2_72B], [0.0, 0.5]))
+        self.judge_client_info_list = judge_client_info_list if judge_client_info_list is not None else make_model_list(ModelTemp([FIREWORKS_LLAMA3_1_8B, GEMINI_FLASH, FIREWORKS_MYTHOMAXL2_13B, GPT4omini, ANTHROPIC_HAIKU],0.0))
 
     def get_input_dict(self, recorder: TraceLogRecorderInterface):
         return {}
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        generate_list = [ANTHROPIC_SONNET, GEMINI_FLASH, GPT4omini, FIREWORKS_QWEN2_72B]
-        generate_info_list = make_model_list(ModelTemp(generate_list, [0.0]))
-        aggregate_list = [GPT4omini, GEMINI_FLASH, FIREWORKS_MYTHOMAXL2_13B, ANTHROPIC_HAIKU]
-        aggregate_info_list = make_model_list(ModelTemp(aggregate_list, [0.0, 0.5]))
-        judge_client_info_list = make_model_list(ModelTemp([FIREWORKS_MYTHOMAXL2_13B, GEMINI_FLASH, FIREWORKS_LLAMA3_1_8B, GPT4omini,
-                                                             ANTHROPIC_HAIKU],0.0))
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt)
-        cycle = GenerateAggregateRankStep(generator_prompt, generate_info_list, aggregate_info_list,4,
-                                           judgement_prompt, judge_client_info_list).create_step(recorder)
+        cycle = GenerateAggregateRankStep(generator_prompt, self.generate_info_list, self.aggregate_info_list,3,
+                                           judgement_prompt, self.judge_client_info_list).create_step(recorder)
         cycle.record_step()
         ordered_response_list = cycle.get_step_output().ordered_response_list
         for result in ordered_response_list:

@@ -392,12 +392,13 @@ class TraceLogRecorder (TraceLogRecorderInterface):
         with self.recorder_lock:
             self.trace_data.cost += cost
 
-    def start_step(self):
+    def start_step(self, step):
         self.trace_data.start_time = datetime.now()
         self.trace_data.step_index = self.get_next_step_index()
+        input_dict = step.get_input_dict(self)
+        self.trace_data.input_dict = input_dict
 
     def create_child_recorder(self, step):
-        input_dict = step.get_input_dict(self)
         client_info = step.get_model_info()
         step_id = str(uuid.uuid4())
         root_recorder = self.root_recorder if self.root_recorder is not None else self
@@ -405,7 +406,7 @@ class TraceLogRecorder (TraceLogRecorderInterface):
                                   self.trace_data.trace_group_id, self.trace_data.variation_of_trace_id, step_id,
                                   None, step, self.trace_data.root_step_id,
                                   self.trace_data.root_step_name, self.trace_data.step_id, self.trace_data.step_name,
-                                  client_info, input_dict, None)
+                                  client_info, None, None)
         return result
 
     def record_exception(self, exception):

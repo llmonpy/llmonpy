@@ -18,7 +18,8 @@ import uuid
 
 from llmonpy.llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, \
     ANTHROPIC_HAIKU, \
-    MISTRAL_8X22B, ANTHROPIC_OPUS, filter_clients_that_didnt_start, GPT4omini, MISTRAL_SMALL
+    MISTRAL_8X22B, ANTHROPIC_OPUS, filter_clients_that_didnt_start, GPT4omini, MISTRAL_SMALL, FIREWORKS_LLAMA3_1_8B, \
+    FIREWORKS_MYTHOMAXL2_13B
 from llmonpy.llmon_pypeline import LLMonPypeline
 from llmonpy.llmonpy_execute import run_step
 from llmonpy.llmonpy_step import TraceLogRecorderInterface, LLMONPY_OUTPUT_FORMAT_JSON, ModelTemp, make_model_list, \
@@ -151,20 +152,17 @@ class GenerateNamePypeline(LLMonPypeline):
             result = copy.deepcopy(vars(self))
             return result
 
-    def __init__(self):
-        pass
+    def __init__(self, client_info_list=None, judge_client_info_list=None):
+        self.client_info_list = client_info_list if client_info_list is not None else make_model_list(ModelTemp([GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET, FIREWORKS_LLAMA3_1_8B, ANTHROPIC_HAIKU], [0.0, 0.5]))
+        self.judge_client_info_list = judge_client_info_list if judge_client_info_list is not None else make_model_list(ModelTemp([GPT4omini, GEMINI_FLASH, FIREWORKS_MYTHOMAXL2_13B, FIREWORKS_LLAMA3_1_8B, ANTHROPIC_HAIKU], 0.0))
 
     def get_input_dict(self, recorder: TraceLogRecorderInterface):
         return {}
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        client_list = [GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, ANTHROPIC_HAIKU]
-        client_info_list = make_model_list(ModelTemp(client_list, [0.0, 0.5]))
-        judge_client_info_list = make_model_list(ModelTemp([GPT4omini, GEMINI_FLASH, MISTRAL_7B,
-                                                            MISTRAL_SMALL, ANTHROPIC_HAIKU],0.0))
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt)
-        tournament = LLMonPyTournament(generator_prompt, client_info_list, judgement_prompt, judge_client_info_list).create_step(recorder)
+        tournament = LLMonPyTournament(generator_prompt, self.client_info_list, judgement_prompt, self.judge_client_info_list).create_step(recorder)
         tournament.record_step()
         result_list = tournament.get_step_output().ordered_response_list
         for result in result_list:

@@ -40,6 +40,8 @@ STEP_STATUS_NO_STATUS = 0
 STEP_STATUS_SUCCESS = 200
 STEP_STATUS_FAILURE = 500
 
+DEFAULT_TIMEOUT_TIME = 600 # seconds
+
 
 def class_has_no_superclass(class_obj):
     return class_obj.__bases__ == (object,)
@@ -172,7 +174,7 @@ class TourneyResultInterface:
 
 class TraceLogRecorderInterface:
 
-    def start_step(self):
+    def start_step(self, step):
         raise NotImplementedError()
 
     def get_step_id(self):
@@ -232,7 +234,7 @@ class TraceLogRecorderInterface:
 
 
 class LLMonPyStep:
-    def __init__(self):
+    def __init__(self,):
         self.recorder: TraceLogRecorderInterface = None
 
     def get_recorder(self) -> TraceLogRecorderInterface:
@@ -247,10 +249,16 @@ class LLMonPyStep:
         return result
 
     def start_step(self):
-        self.recorder.start_step()
+        self.recorder.start_step(self)
 
     def record_step(self):
         self.start_step()
+        return self.do_step()
+
+    def retry_step(self):
+        return self.do_step()
+
+    def do_step(self):
         try:
             result = self.execute_step()
             self.recorder.finish_step(result)
@@ -293,8 +301,7 @@ class LLMonPyStep:
         return LLMONPY_OUTPUT_FORMAT_JSON
 
 
-
-def step_to_judeged_output(step_list:[LLMonPyStep]) -> [JudgedOutput]:
+def step_to_judged_output(step_list:[LLMonPyStep]) -> [JudgedOutput]:
     result = []
     for step in step_list:
         result.append(JudgedOutput(step.get_step_id(), step.get_step_output(), step.get_model_info()))

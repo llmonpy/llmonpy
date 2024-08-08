@@ -1,14 +1,15 @@
 import argparse
 import json
 
-from llmonpy.llm_client import get_active_llm_clients, MISTRAL_7B
+from llmonpy.llm_client import get_active_llm_clients, MISTRAL_7B, GPT4omini, FIREWORKS_LLAMA3_1_8B, \
+    FIREWORKS_MYTHOMAXL2_13B, FIREWORKS_GEMMA2_9B, FIREWORKS_LLAMA3_1_405B, FIREWORKS_LLAMA3_1_70B
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
 from llmonpy.llmonpy_execute import run_step
 from llmonpy.llmonpy_prompt import LLMonPyPromptRunner
 from llmonpy.example.test_cycle import GenerateNameCycle
 from llmonpy.example.test_prompts import TestLLMonPyPrompt
 from llmonpy.example.test_tourney import GenerateNamePypeline
-from llmonpy.llmonpy_step import LlmModelInfo
+from llmonpy.llmonpy_step import LlmModelInfo, make_model_list, ModelTemp
 from llmonpy.example.test_gar import GenerateNameGar
 from llmonpy.trace_log import trace_log_service
 
@@ -20,6 +21,11 @@ def llmonpy_cli():
     parser.add_argument('-name', type=str, help='name argument')
     args = parser.parse_args()
     llmonpy_start()
+    model_list = [FIREWORKS_LLAMA3_1_8B, FIREWORKS_MYTHOMAXL2_13B, FIREWORKS_LLAMA3_1_70B, FIREWORKS_GEMMA2_9B, FIREWORKS_LLAMA3_1_405B]
+    first_round_info_list = make_model_list(ModelTemp(model_list, [0.0, 0.75]))
+    aggregate_info_list = make_model_list(ModelTemp(model_list,[0.0, 0.75]))
+    judge_client_info_list = make_model_list(ModelTemp(model_list, 0.0))
+
     try:
         if args.function == 'models':
             model_list = get_active_llm_clients()
@@ -37,17 +43,17 @@ def llmonpy_cli():
             print(result.to_json())
         elif args.function == 'tourney':
             print("running tourney test")
-            step = GenerateNamePypeline().create_step(None)
+            step = GenerateNamePypeline(client_info_list=first_round_info_list, judge_client_info_list=judge_client_info_list).create_step(None)
             result = run_step(step)
             print(result.to_json())
         elif args.function == 'cycle':
             print("running cycle test")
-            step = GenerateNameCycle().create_step(None)
+            step = GenerateNameCycle(first_round_info_list=first_round_info_list, aggregate_info_list=aggregate_info_list, judge_client_info_list=judge_client_info_list).create_step(None)
             result = run_step(step)
             print(result.to_json())
         elif args.function == 'gar':
             print("running gar test")
-            step = GenerateNameGar().create_step(None)
+            step = GenerateNameGar(generate_info_list=first_round_info_list, aggregate_info_list=aggregate_info_list, judge_client_info_list=judge_client_info_list).create_step(None)
             result = run_step(step)
             print(result.to_json())
         elif args.function == 'qbawa_list':

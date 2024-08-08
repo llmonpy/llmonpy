@@ -79,6 +79,8 @@ class TournamentResponseGenerator(LLMonPypeline):
         self.generation_prompt = generation_prompt
         self.generation_model_info_list = generation_model_info_list
         self.contestant_list = None
+        self.output_list: [JudgedOutput] = []
+        self.response_dict = {}
 
     def get_step_type(self) -> str:
         return STEP_TYPE_GENERATOR
@@ -92,30 +94,20 @@ class TournamentResponseGenerator(LLMonPypeline):
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
         self.contestant_list = create_prompt_steps(recorder, self.generation_prompt, self.generation_model_info_list)
-        future_list = []
-        output_list: [JudgedOutput] = []
-        response_dict = {}
-        for contestant in self.contestant_list:
-            future = contestant.get_thread_pool().submit(contestant.record_step)
-            future_list.append(future)
-        for future in concurrent.futures.as_completed(future_list):
-            try:
-                step = future.result()
-                output = step.get_step_output()
-                output_as_str = str(output)
-                if output_as_str not in response_dict:
-                    print("output received " + output_as_str)
-                    response_dict[output_as_str] = output
-                    judged_output = JudgedOutput(step.get_step_id(), output, step.get_model_info())
-                    output_list.append(judged_output)
-                else:
-                    print("duplicate " + output_as_str)
-                    recorder.log_message("duplicate " + output_as_str)
-            except Exception as e:
-                print(str(e))
-                pass
-        result = TournamentResponseGenerator.LLMonPyOutput(output_list)
+        self.run_parallel_steps_with_retry(self.contestant_list, handle_result_function=self.record_output)
+        result = TournamentResponseGenerator.LLMonPyOutput(self.output_list)
         return result
+
+    def record_output(self, step):
+        output = step.get_step_output()
+        output_as_str = str(output)
+        if output_as_str not in self.response_dict:
+            print("output received " + output_as_str)
+            self.response_dict[output_as_str] = output
+            judged_output = JudgedOutput(step.get_step_id(), output, step.get_model_info())
+            self.output_list.append(judged_output)
+        else:
+            print("duplicate " + output_as_str)
 
 
 class CompareOutputStep(LLMonPypeline):
@@ -138,6 +130,8 @@ class CompareOutputStep(LLMonPypeline):
         self.judgement_prompt = judgement_prompt
         self.judgement_model_info_list = judgement_model_info_list
         self.judge_list = None
+        self.contestant_1_victory_count = 0
+        self.contestant_2_victory_count = 0
 
     def get_step_type(self) -> str:
         return STEP_TYPE_JURY
@@ -151,35 +145,27 @@ class CompareOutputStep(LLMonPypeline):
 
     def execute_step(self, recorder):
         self.judge_list = create_prompt_steps(recorder, self.judgement_prompt, self.judgement_model_info_list)
-        future_list = []
-        contestant_1_victory_count = 0
-        contestant_2_victory_count = 0
         for judge in self.judge_list:
             judge.get_prompt().set_contestants(self.output_1.step_output, self.output_2.step_output)
-            future = judge.get_thread_pool().submit(judge.record_step)
-            future_list.append(future)
-        for future in concurrent.futures.as_completed(future_list):
-            try:
-                step = future.result()
-                output = step.get_step_output()
-                if output.winner == 1:
-                    contestant_1_victory_count += 1
-                else:
-                    contestant_2_victory_count += 1
-            except Exception as e:
-                print(str(e))
-                pass
-        if contestant_1_victory_count > contestant_2_victory_count:
+        self.run_parallel_steps_with_retry(self.judge_list, handle_result_function=self.record_victory)
+        if self.contestant_1_victory_count > self.contestant_2_victory_count:
             self.winner = self.output_1
-            self.dissent_count = contestant_2_victory_count
+            self.dissent_count = self.contestant_2_victory_count
             print("winner 1")
         else:
             self.winner = self.output_2
-            self.dissent_count = contestant_1_victory_count
+            self.dissent_count = self.contestant_1_victory_count
             print("winner 2")
         result = CompareOutputStep.LLMonPyOutput(self.output_1.output_id, self.output_2.output_id, self.winner.output_id,
                                                  self.dissent_count)
         return result
+
+    def record_victory(self, step):
+        output = step.get_step_output()
+        if output.winner == 1:
+            self.contestant_1_victory_count += 1
+        else:
+            self.contestant_2_victory_count += 1
 
 
 class OrderedStepOutputList(LLMonPyStepOutput):
@@ -194,12 +180,12 @@ class OrderedStepOutputList(LLMonPyStepOutput):
 
 
 class RankOutputStep(LLMonPypeline):
-
     def __init__(self, contestant_step_name, contestant_list: [JudgedOutput], judgement_prompt, judgement_model_info_list):
         self.contestant_step_name = contestant_step_name
         self.contestant_list = contestant_list
         self.judgement_prompt = judgement_prompt
         self.judgement_model_info_list = judgement_model_info_list
+        self.tourney_result = None
 
     def get_step_type(self) -> str:
         return STEP_TYPE_RANKER
@@ -217,33 +203,24 @@ class RankOutputStep(LLMonPypeline):
         contest_list = []
         number_of_contestants = len(self.contestant_list)
         number_of_judges = len(self.judgement_model_info_list)
-        tourney_result = recorder.create_tourney_result(number_of_judges, self.contestant_step_name)
+        self.tourney_result = recorder.create_tourney_result(number_of_judges, self.contestant_step_name)
         while start_index < (number_of_contestants - 1):
             for i in range(start_index + 1, number_of_contestants):
                 contest_list.append(CompareOutputStep(self.contestant_list[start_index], self.contestant_list[i],
                                                       self.judgement_prompt, self.judgement_model_info_list).create_step(recorder))
             start_index += 1
-        future_list = []
         print("number of contests " + str(len(contest_list)))
-        for contest in contest_list:
-            future = contest.get_thread_pool().submit(contest.record_step)
-            future_list.append(future)
-        for future in concurrent.futures.as_completed(future_list):
-            try:
-                contest_step = future.result()
-                contest_result = contest_step.get_step_output()
-                tourney_result.add_contest_result(contest_result.output_1_id, contest_result.output_2_id,
-                                                  contest_result.winner_id, contest_result.dissent_count)
-                self.record_victory(contest_result.winner_id)
-            except Exception as e:
-                print(str(e))
-                pass
+        self.run_parallel_steps_with_retry(contest_list, handle_result_function=self.record_victory)
         ordered_contestant_list = sorted(self.contestant_list, key=lambda x: x.victory_count, reverse=True)
-        recorder.record_tourney_result(ordered_contestant_list, tourney_result)
+        recorder.record_tourney_result(ordered_contestant_list, self.tourney_result)
         result = OrderedStepOutputList(ordered_contestant_list)
         return result
 
-    def record_victory(self, winner_id):
+    def record_victory(self, step):
+        contest_result = step.get_step_output()
+        self. tourney_result.add_contest_result(contest_result.output_1_id, contest_result.output_2_id,
+                                          contest_result.winner_id, contest_result.dissent_count)
+        winner_id = contest_result.winner_id
         for contestant in self.contestant_list:
             if contestant.output_id == winner_id:
                 contestant.victory_count += 1

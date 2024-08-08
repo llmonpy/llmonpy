@@ -1,11 +1,16 @@
+import concurrent
 import copy
 
 from llmonpy.llmonpy_step import LLMonPyStep, TraceLogRecorderInterface, STEP_TYPE_PYPELINE, \
-    get_step_name_from_class_hierarchy
+    get_step_name_from_class_hierarchy, DEFAULT_TIMEOUT_TIME
 from llmonpy.trace_log import trace_log_service
 
 
 class LLMonPypeline:
+
+    def __init__(self):
+        pass
+
     def execute_step(self, recorder: TraceLogRecorderInterface):
         raise NotImplementedError()
 
@@ -29,6 +34,49 @@ class LLMonPypeline:
 
     def create_step(self, parent_recorder: TraceLogRecorderInterface):
         return LLMonPypelineRunner(parent_recorder, self)
+
+    # step are returned in the order they complete, not the order they were submitted.  Also, if a step timesout, it
+    # will be retried once.  If it fails again, it will not be included in the result list.
+    def run_parallel_steps_with_retry(self, step_list, timeout_time=DEFAULT_TIMEOUT_TIME, handle_result_function=None):
+        future_list = []
+        result_dict = {}
+        timeout_exception = None
+        for step in step_list:
+            future = step.get_thread_pool().submit(step.record_step)
+            future_list.append(future)
+        for future in concurrent.futures.as_completed(future_list, timeout=timeout_time):
+            try:
+                returned_step = future.result()
+                result_dict[returned_step.get_step_id()] = returned_step
+                if handle_result_function is not None:
+                    handle_result_function(returned_step)
+            except concurrent.futures.TimeoutError as te:
+                timeout_exception = te
+                print("TimeoutError")
+            except Exception as e:
+                print(str(e)) # exception was logged in record_step
+                pass
+        if len(result_dict) < len(step_list):
+            retry_list = []
+            for step in step_list:
+                if step.get_step_id() not in result_dict:
+                    step.get_recorder().log_exception(timeout_exception)
+                    retry_list.append(step)
+            print("Retrying steps that timed out " + str(len(retry_list)))
+            for step in retry_list:
+                future = step.get_thread_pool().submit(step.retry_step)
+                future_list.append(future)
+            for future in concurrent.futures.as_completed(future_list, timeout=(timeout_time * 2)):
+                try:
+                    returned_step = future.result()
+                    result_dict[returned_step.get_step_id()] = returned_step
+                    if handle_result_function is not None:
+                        handle_result_function(returned_step)
+                except Exception as e:
+                    print(str(e))
+                    pass
+        result_list = list(result_dict.values())
+        return result_list
 
 
 class LLMonPypelineRunner(LLMonPyStep):
