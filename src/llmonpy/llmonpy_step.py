@@ -168,7 +168,7 @@ class JudgedOutput(LLMonPyStepOutput):
 
 
 class TourneyResultInterface:
-    def add_contest_result(self, contestant_1_output_id, contestant_2_output_id, winner_output_id, dissenting_judges=0):
+    def add_contest_result(self, step_id, contestant_1_output_id, contestant_2_output_id, winner_output_id, dissenting_judges=0):
         raise NotImplementedError()
 
 

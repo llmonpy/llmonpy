@@ -218,7 +218,7 @@ class RankOutputStep(LLMonPypeline):
 
     def record_victory(self, step):
         contest_result = step.get_step_output()
-        self. tourney_result.add_contest_result(contest_result.output_1_id, contest_result.output_2_id,
+        self. tourney_result.add_contest_result(step.get_step_id(),contest_result.output_1_id, contest_result.output_2_id,
                                           contest_result.winner_id, contest_result.dissent_count)
         winner_id = contest_result.winner_id
         for contestant in self.contestant_list:

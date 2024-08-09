@@ -187,7 +187,8 @@ class LLMonPyLogPromptResponse(LLMonPyLogEvent):
 
 
 class ContestResult:
-    def __init__(self, contestant_one_output_id, contestant_two_output_id, winner_output_id, dissenting_judges:int = 0):
+    def __init__(self, step_id,contestant_one_output_id, contestant_two_output_id, winner_output_id, dissenting_judges:int = 0):
+        self.step_id = step_id
         self.contestant_one_output_id = contestant_one_output_id
         self.contestant_two_output_id = contestant_two_output_id
         self.winner_output_id = winner_output_id
@@ -221,12 +222,14 @@ class TourneyResult(TourneyResultInterface):
         self.contestant_list = contestant_list if contestant_list is not None else []
         self.contest_result_list = contest_result_list if contest_result_list is not None else []
 
-    def add_contest_result(self, contestant_1_output_id, contestant_2_output_id, winner_output_id, dissenting_judges=0):
-        result = ContestResult(contestant_1_output_id, contestant_2_output_id, winner_output_id, dissenting_judges)
+    def add_contest_result(self, step_id, contestant_1_output_id, contestant_2_output_id, winner_output_id, dissenting_judges=0):
+        result = ContestResult(step_id, contestant_1_output_id, contestant_2_output_id, winner_output_id, dissenting_judges)
         self.contest_result_list.append(result)
 
     def to_dict(self):
         result = copy.deepcopy(vars(self))
+        if "input_data" in result and "contestant_list" in result["input_data"]:
+            del result["input_data"]["contestant_list"] # confusing to have 2 contestant lists
         result["start_time"] = result["start_time"].isoformat() if result["start_time"] is not None else None
         result["contestant_list"] = [contestant.to_dict() for contestant in result["contestant_list"]]
         result["contest_result_list"] = [contest_result.to_dict() for contest_result in result["contest_result_list"]]
