@@ -35,7 +35,7 @@ from together import Together
 
 from llmonpy.llmonpy_util import fix_common_json_encoding_errors
 from llmonpy.rate_llmiter import RateLlmiter
-from system_services import system_services
+from llmonpy.system_services import add_service_to_stop
 
 PROMPT_RETRIES = 5
 RATE_LIMIT_RETRIES = 20
@@ -644,7 +644,7 @@ MISTRAL_LARGE = MistralLlmClient("mistral-large-2407", 120000, MISTRAL_RATE_LIMI
 #                                     TOGETHER_THREAD_POOL, 0.10, 0.10)
 GPT3_5 = OpenAIModel('gpt-3.5-turbo-0125', 15000, RateLlmiter(10000, 2000000), OPENAI_THREAD_POOL, 0.5, 1.5)
 GPT4 = OpenAIModel('gpt-4-turbo-2024-04-09', 120000, RateLlmiter(10000, 2000000), OPENAI_THREAD_POOL, 10.0, 30.0)
-GPT4o = OpenAIModel('gpt-4o', 120000, RateLlmiter(10000, 30000000), OPENAI_THREAD_POOL, 5.0, 15.0)
+GPT4o = OpenAIModel('gpt-4o', 120000, RateLlmiter(10000, 30000000), OPENAI_THREAD_POOL, 2.5, 15.0)
 GPT4omini = OpenAIModel('gpt-4o-mini', 120000, RateLlmiter(10000, 15000000), OPENAI_THREAD_POOL, 0.15, 0.60)
 ANTHROPIC_OPUS = AnthropicModel("claude-3-opus-20240229", 180000, RateLlmiter(4000, 400000), ANTHROPIC_THREAD_POOL,
                                 15.0, 75.0)
@@ -687,6 +687,7 @@ def init_llm_clients():
         print("No key found for " + key)
     status_service = LLMClientStatusService()
     status_service.start()
+    add_service_to_stop(status_service)
     return clients_with_keys
 
 

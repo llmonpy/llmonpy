@@ -24,7 +24,7 @@ from llmonpy.config import llmonpy_config
 from llmonpy.llmonpy_step import LLMonPyStepOutput, LLMONPY_OUTPUT_FORMAT_JSON, STEP_STATUS_NO_STATUS, STEP_STATUS_SUCCESS, \
     TraceLogRecorderInterface, TourneyResultInterface, JudgedOutput, LlmModelInfo
 from llmonpy.llmonpy_trace_store import SqliteLLMonPyTraceStore
-from llmonpy.system_services import system_services
+from llmonpy.system_services import add_service_to_stop
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
 
 NO_VARIATION_OF_TRACE_ID = "NO_VARIATION_OF_TRACE_ID"
@@ -461,6 +461,13 @@ class TraceLogRecorder (TraceLogRecorderInterface):
 
 
 class TraceLogService:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(TraceLogService, cls).__new__(cls)
+        return cls._instance
+
     def __init__(self):
         self.data_directory = llmonpy_config().data_directory
         self.step_file_path = os.path.join(self.data_directory, "steps.jsonl")
@@ -479,7 +486,6 @@ class TraceLogService:
         self.event_list = []
         self.tourney_result_list = []
         self.trace_info_list = []
-
 
     def init_event_factory(self):
         subclasses = LLMonPyLogEvent.__subclasses__()
@@ -612,14 +618,18 @@ class TraceLogService:
         result.sort(key=lambda x: x.start_time, reverse=True)
         return result
 
+    @staticmethod
+    def get_instance():
+        return TraceLogService._instance
+
 
 def init_trace_log_service():
     result = TraceLogService()
-    system_services().set_trace_log_service(result)
+    add_service_to_stop(result)
 
 
 def trace_log_service() -> TraceLogService:
-    result = system_services().trace_log_service
+    result = TraceLogService.get_instance()
     return result
 
 

@@ -13,51 +13,16 @@
 #   COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 #   OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-class SystemServices:
-    _instance = None
-
-    def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            cls._instance = super(SystemServices, cls).__new__(cls)
-        return cls._instance
-
-    def __init__(self):
-        self.config = None
-        self.services_to_stop = []
-        self.trace_log_service = None
-        self.llm_client_status_service = None
-
-    def set_config(self, config):
-        self.config = config
-        self.add_service_to_stop(config)
-
-    def get_config(self):
-        return self.config
-
-    def set_trace_log_service(self, trace_log_service):
-        self.trace_log_service = trace_log_service
-        self.add_service_to_stop(trace_log_service)
-
-    def get_trace_log_service(self):
-        return self.trace_log_service
-
-    def set_llm_client_status_service(self, llm_client_status_service):
-        self.llm_client_status_service = llm_client_status_service
-        self.add_service_to_stop(llm_client_status_service)
-
-    def add_service_to_stop(self, service):
-        self.services_to_stop.append(service)
-
-    def stop(self):
-        stop_in_reverse_order_started = list(reversed(self.services_to_stop))
-        for service in stop_in_reverse_order_started:
-            service.stop()
+gServicesToStop = []
 
 
-def init_system_services():
-    SystemServices()
+def add_service_to_stop(service):
+    gServicesToStop.append(service)
 
 
-def system_services() -> SystemServices:
-    result = SystemServices._instance
-    return result
+def stop_services():
+    reversed_list = list(reversed(gServicesToStop))
+    for service in reversed_list:
+        service.stop()
+
+

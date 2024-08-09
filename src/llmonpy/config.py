@@ -16,7 +16,7 @@ import concurrent
 import os
 
 from llmonpy.llm_client import init_llm_clients
-from llmonpy.system_services import system_services
+from llmonpy.system_services import add_service_to_stop
 
 DEFAULT_THREAD_POOL_SIZE = 50
 DEFAULT_DATA_DIRECTORY = "data"
@@ -29,6 +29,13 @@ def compute_default_data_directory():
 
 
 class LLMonPyConfig:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(LLMonPyConfig, cls).__new__(cls)
+        return cls._instance
+
     def __init__(self, data_directory=None,
                  thread_pool_size=DEFAULT_THREAD_POOL_SIZE):
         self.thread_pool_size = thread_pool_size
@@ -38,14 +45,18 @@ class LLMonPyConfig:
     def stop(self):
         self.thread_pool.shutdown()
 
+    @staticmethod
+    def get_instance():
+        return LLMonPyConfig._instance
+
 
 def init_llmonpy():
-    init_llm_clients()
     config = LLMonPyConfig()
-    system_services().set_config(config)
+    add_service_to_stop(config)
+    init_llm_clients()
     if os.path.isdir(config.data_directory) is False:
         os.makedirs(config.data_directory)
 
 
 def llmonpy_config() -> LLMonPyConfig:
-    return system_services().config
+    return LLMonPyConfig.get_instance()
