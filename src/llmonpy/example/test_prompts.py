@@ -17,7 +17,7 @@ import time
 import traceback
 import uuid
 
-from llmonpy.llm_client import MISTRAL_7B, TOGETHER_QWEN1_5_4B, TOGETHER_LLAMA3_70B, FIREWORKS_LLAMA3_1_8B, \
+from llmonpy.llm_client import MISTRAL_7B, FIREWORKS_LLAMA3_1_8B, \
     FIREWORKS_LLAMA3_1_405B, FIREWORKS_LLAMA3_1_70B, FIREWORKS_GEMMA2_9B, FIREWORKS_MYTHOMAXL2_13B, FIREWORKS_QWEN2_72B
 from llmonpy.llmonpy_execute import run_step
 from llmonpy.llmonpy_prompt import LLMonPyPrompt, LLMonPyPromptRunner

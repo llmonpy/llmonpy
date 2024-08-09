@@ -25,6 +25,7 @@ class SystemServices:
         self.config = None
         self.services_to_stop = []
         self.trace_log_service = None
+        self.llm_client_status_service = None
 
     def set_config(self, config):
         self.config = config
@@ -39,6 +40,10 @@ class SystemServices:
 
     def get_trace_log_service(self):
         return self.trace_log_service
+
+    def set_llm_client_status_service(self, llm_client_status_service):
+        self.llm_client_status_service = llm_client_status_service
+        self.add_service_to_stop(llm_client_status_service)
 
     def add_service_to_stop(self, service):
         self.services_to_stop.append(service)

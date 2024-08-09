@@ -151,11 +151,11 @@ class CompareOutputStep(LLMonPypeline):
         if self.contestant_1_victory_count > self.contestant_2_victory_count:
             self.winner = self.output_1
             self.dissent_count = self.contestant_2_victory_count
-            print("winner 1")
+            #print("winner 1")
         else:
             self.winner = self.output_2
             self.dissent_count = self.contestant_1_victory_count
-            print("winner 2")
+            #print("winner 2")
         result = CompareOutputStep.LLMonPyOutput(self.output_1.output_id, self.output_2.output_id, self.winner.output_id,
                                                  self.dissent_count)
         return result

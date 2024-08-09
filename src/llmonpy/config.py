@@ -15,7 +15,7 @@
 import concurrent
 import os
 
-from llmonpy.llm_client import add_llm_clients, ALL_CLIENT_LIST
+from llmonpy.llm_client import init_llm_clients
 from llmonpy.system_services import system_services
 
 DEFAULT_THREAD_POOL_SIZE = 50
@@ -30,9 +30,7 @@ def compute_default_data_directory():
 
 class LLMonPyConfig:
     def __init__(self, data_directory=None,
-                 client_list=ALL_CLIENT_LIST,
                  thread_pool_size=DEFAULT_THREAD_POOL_SIZE):
-        self.client_list = add_llm_clients(client_list)
         self.thread_pool_size = thread_pool_size
         self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=self.thread_pool_size)
         self.data_directory = data_directory if data_directory else compute_default_data_directory()
@@ -42,6 +40,7 @@ class LLMonPyConfig:
 
 
 def init_llmonpy():
+    init_llm_clients()
     config = LLMonPyConfig()
     system_services().set_config(config)
     if os.path.isdir(config.data_directory) is False:

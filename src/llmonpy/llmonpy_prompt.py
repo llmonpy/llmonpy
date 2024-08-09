@@ -131,7 +131,7 @@ class LLMonPyPromptRunner(LLMonPyStep):
         result = None
         for i in range(0, 3):
             try:
-                response = self.get_llm_client().prompt(prompt_text, Nothing, self.prompt.get_json_output(),
+                response = self.get_llm_client().prompt(self.get_step_id(), prompt_text, Nothing, self.prompt.get_json_output(),
                                                   self.llm_model_info.get_temp())
                 recorder.record_cost(response.get_response_cost())
                 recorder.log_prompt_response(prompt_text, response.response_text)

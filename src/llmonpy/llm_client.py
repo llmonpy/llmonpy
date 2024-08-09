@@ -15,10 +15,12 @@
 
 
 import concurrent
+import copy
 import json
 import os
 import threading
 import time
+import uuid
 from queue import Queue, Empty
 
 import anthropic
@@ -33,6 +35,7 @@ from together import Together
 
 from llmonpy.llmonpy_util import fix_common_json_encoding_errors
 from llmonpy.rate_llmiter import RateLlmiter
+from system_services import system_services
 
 PROMPT_RETRIES = 5
 RATE_LIMIT_RETRIES = 20
@@ -74,6 +77,158 @@ def backoff_after_exception(attempt):
     time.sleep(delay_time)
 
 
+PROMPT_START_EVENT = 1
+PROMPT_RATE_LIMIT_EVENT = 2
+PROMPT_GOT_TICKET_EVENT = 3
+PROMPT_DONE_EVENT = 4
+PROMPT_EXCEPTION_EVENT = 5
+
+PROMPT_STATE_WAITING_FOR_TICKET = 1
+PROMPT_STATE_HAVE_TICKET = 2
+PROMPT_STATE_DONE = 3
+
+
+class LLMClientPromptEvent:
+    def __init__(self, prompt_id: str, client_name: str, event:int):
+        self.prompt_id = prompt_id
+        self.client_name = client_name
+        self.event = event
+        self.event_time = time.time()
+
+
+class LLMClientPromptStatus:
+    def __init__(self, prompt_id: str, client_name: str):
+        self.prompt_id = prompt_id
+        self.client_name = client_name
+        self.start_time = time.time()
+        self.state = PROMPT_STATE_WAITING_FOR_TICKET
+
+
+class LLMClientStatus:
+    def __init__(self, client_name: str):
+        self.client_name = client_name
+        self.in_flight_prompt_dict = {}
+        self.waiting_for_ticket = 0
+        self.completed_prompt_count = 0
+        self.exception_count = 0
+        self.rate_limit_count = 0
+        self.slowest_prompt = 0
+
+    def calculate_slowest_prompt(self, current_time):
+        slowest = 0
+        for prompt_status in self.in_flight_prompt_dict.values():
+            prompt_time = current_time - prompt_status.start_time
+            if prompt_time > slowest:
+                slowest = prompt_time
+        self.slowest_prompt = slowest
+
+
+class LLMClientStatusService:
+    _instance = None
+    REPORT_INTERVAL = 2
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(LLMClientStatusService, cls).__new__(cls)
+        return cls._instance
+
+    def __init__(self):
+        self.client_status_dict = {}
+        self.status_lock = threading.Lock()
+        self.timer = threading.Timer(interval=LLMClientStatusService.REPORT_INTERVAL, function=self.report_status)
+        self.running = False
+
+    def start(self):
+        self.running = True
+        self.timer.start()
+
+    def start_timer(self):
+        if self.running:
+            self.timer = threading.Timer(interval=LLMClientStatusService.REPORT_INTERVAL, function=self.report_status)
+            self.timer.start()
+
+    def stop(self):
+        self.running = False
+        self.timer.cancel()
+
+    def start_prompt(self, prompt_id, client_name):
+        with self.status_lock:
+            if client_name not in self.client_status_dict:
+                self.client_status_dict[client_name] = LLMClientStatus(client_name)
+            client_status = self.client_status_dict[client_name]
+            client_status.waiting_for_ticket += 1
+            prompt_status = LLMClientPromptStatus(prompt_id, client_name)
+            client_status.in_flight_prompt_dict[prompt_id] = prompt_status
+
+    def rate_limit_exceeded(self, prompt_id, client_name):
+        with self.status_lock:
+            client_status = self.client_status_dict[client_name]
+            client_status.waiting_for_ticket += 1
+            prompt_status = client_status.in_flight_prompt_dict[prompt_id]
+            prompt_status.state = PROMPT_STATE_WAITING_FOR_TICKET
+            prompt_status.rate_limit_count += 1
+
+    def got_ticket(self, prompt_id, client_name):
+        with self.status_lock:
+            client_status = self.client_status_dict[client_name]
+            client_status.waiting_for_ticket -= 1
+            prompt_status = client_status.in_flight_prompt_dict[prompt_id]
+            prompt_status.state = PROMPT_STATE_HAVE_TICKET
+
+    def prompt_done(self, prompt_id, client_name):
+        with self.status_lock:
+            client_status = self.client_status_dict[client_name]
+            client_status.completed_prompt_count += 1
+            del client_status.in_flight_prompt_dict[prompt_id]
+
+    def prompt_failed(self, prompt_id, client_name):
+        with self.status_lock:
+            client_status = self.client_status_dict[client_name]
+            client_status.completed_prompt_count += 1
+            client_status.exception_count += 1
+            del client_status.in_flight_prompt_dict[prompt_id]
+
+    def copy_status(self):
+        with self.status_lock:
+            result = copy.deepcopy(self.client_status_dict)
+        return result
+
+    def get_all_status(self):
+        frozen_status_dict = self.copy_status()
+        client_status_list = []
+        all_status = LLMClientStatus("All")
+        current_time = time.time()
+        all_in_flight = 0
+        for client_status in frozen_status_dict.values():
+            client_status.calculate_slowest_prompt(current_time)
+            if client_status.slowest_prompt > all_status.slowest_prompt:
+                all_status.slowest_prompt = client_status.slowest_prompt
+            client_status_list.append(client_status)
+            all_in_flight += len(client_status.in_flight_prompt_dict)
+            all_status.waiting_for_ticket += client_status.waiting_for_ticket
+            all_status.completed_prompt_count += client_status.completed_prompt_count
+            all_status.exception_count += client_status.exception_count
+            all_status.rate_limit_count += client_status.rate_limit_count
+        return all_status, all_in_flight
+
+    def report_status(self):
+        current_status, in_flight = self.get_all_status()
+        waiting = current_status.waiting_for_ticket
+        completed = current_status.completed_prompt_count
+        slowest = current_status.slowest_prompt
+        print(f"\n{current_status.client_name} in_flight:{in_flight} rate_limited:{waiting} completed:{completed} slowest:{slowest:.3f}\n")
+        self.start_timer()
+
+    @staticmethod
+    def get_instance():
+        return LLMClientStatusService._instance
+
+
+def llm_client_prompt_status_service() -> LLMClientStatusService:
+    result = LLMClientStatusService.get_instance()
+    return result
+
+
 class LlmClientRateLimitException(Exception):
     def __init__(self):
         super().__init__("Rate limit exceeded")
@@ -105,6 +260,8 @@ class LlmClientResponse:
 
 
 class LlmClient:
+    all_client_list = []
+
     def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
                  price_per_output_token=0.0):
         self.model_name = model_name
@@ -113,6 +270,7 @@ class LlmClient:
         self.thread_pool = thead_pool
         self.price_per_input_token = price_per_input_token
         self.price_per_output_token = price_per_output_token
+        LlmClient.all_client_list.append(self)
 
     def start(self):
         # this should init API.
@@ -121,10 +279,12 @@ class LlmClient:
     def get_model_name(self):
         return self.model_name
 
-    def prompt(self, prompt_text, system_prompt=Nothing, json_output=False, temp=0.0,
+    def prompt(self, prompt_id, prompt_text, system_prompt=Nothing, json_output=False, temp=0.0,
                max_output=None) -> LlmClientResponse:
         result = None
+        llm_client_prompt_status_service().start_prompt(prompt_id, self.model_name)
         self.rate_limiter.get_ticket()
+        llm_client_prompt_status_service().got_ticket(prompt_id, self.model_name)
         for attempt in range(RATE_LIMIT_RETRIES):
             try:
                 result = self.do_prompt(prompt_text, system_prompt, json_output, temp, max_output)
@@ -132,17 +292,24 @@ class LlmClient:
                     # some llms return empty result when the rate limit is exceeded, throw exception to retry
                     raise LlmClientRateLimitException()
                 else:
+                    llm_client_prompt_status_service().prompt_done(prompt_id, self.model_name)
                     break
             except Exception as e:
                 if getattr(e, "status_code", None) is not None and e.status_code == 429:
-                    self.rate_limiter.wait_for_ticket_after_rate_limit_exceeded()
+                    self.wait_for_ticket_after_rate_limit_exceeded(prompt_id)
                     continue
                 elif getattr(e, "code", None) is not None and e.code == 429:
-                    self.rate_limiter.wait_for_ticket_after_rate_limit_exceeded()
+                    self.wait_for_ticket_after_rate_limit_exceeded(prompt_id)
                     continue
                 else:
+                    llm_client_prompt_status_service().prompt_failed(prompt_id, self.model_name)
                     raise e
         return result
+
+    def wait_for_ticket_after_rate_limit_exceeded(self, prompt_id):
+        llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
+        self.rate_limiter.wait_for_ticket_after_rate_limit_exceeded()
+        llm_client_prompt_status_service().got_ticket(prompt_id, self.model_name)
 
     def do_prompt(self, prompt_text, system_prompt=None, json_output=False, max_output=None, temp=0.0):
         raise Exception("Not implemented")
@@ -154,6 +321,10 @@ class LlmClient:
         input_cost = (input_tokens * self.price_per_input_token) / TOKEN_UNIT_FOR_COST
         output_cost = (output_tokens * self.price_per_output_token) / TOKEN_UNIT_FOR_COST
         return input_cost, output_cost
+
+    @staticmethod
+    def get_all_clients():
+        return LlmClient.all_client_list
 
 
 class OpenAIModel(LlmClient):
@@ -465,12 +636,12 @@ MISTRAL_SMALL = MistralLlmClient("mistral-small", 24000, MISTRAL_RATE_LIMITER, M
 MISTRAL_8X7B = MistralLlmClient("open-mixtral-8x7b", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 0.7, 0.7)
 MISTRAL_LARGE = MistralLlmClient("mistral-large-2407", 120000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 3.0, 9.0)
 
-TOGETHER_LLAMA3_70B = TogetherAIModel("meta-llama/Llama-3-70b-chat-hf", 8000, TOGETHER_RATE_LIMITER,
-                                      TOGETHER_THREAD_POOL, 0.10, 0.10)
-TOGETHER_LLAMA3_1_7B = TogetherAIModel("meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo", 128000, TOGETHER_RATE_LIMITER,
-                                       TOGETHER_THREAD_POOL, 0.18, 0.18)
-TOGETHER_QWEN1_5_4B = TogetherAIModel("mistralai/Mistral-7B-Instruct-v0.3", 32000, TOGETHER_RATE_LIMITER,
-                                      TOGETHER_THREAD_POOL, 0.10, 0.10)
+#TOGETHER_LLAMA3_70B = TogetherAIModel("meta-llama/Llama-3-70b-chat-hf", 8000, TOGETHER_RATE_LIMITER,
+#                                      TOGETHER_THREAD_POOL, 0.10, 0.10)
+#TOGETHER_LLAMA3_1_7B = TogetherAIModel("meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo", 128000, TOGETHER_RATE_LIMITER,
+#                                       TOGETHER_THREAD_POOL, 0.18, 0.18)
+#TOGETHER_QWEN1_5_4B = TogetherAIModel("mistralai/Mistral-7B-Instruct-v0.3", 32000, TOGETHER_RATE_LIMITER,
+#                                     TOGETHER_THREAD_POOL, 0.10, 0.10)
 GPT3_5 = OpenAIModel('gpt-3.5-turbo-0125', 15000, RateLlmiter(10000, 2000000), OPENAI_THREAD_POOL, 0.5, 1.5)
 GPT4 = OpenAIModel('gpt-4-turbo-2024-04-09', 120000, RateLlmiter(10000, 2000000), OPENAI_THREAD_POOL, 10.0, 30.0)
 GPT4o = OpenAIModel('gpt-4o', 120000, RateLlmiter(10000, 30000000), OPENAI_THREAD_POOL, 5.0, 15.0)
@@ -499,14 +670,9 @@ FIREWORKS_QWEN2_72B = FireworksAIModel("accounts/fireworks/models/qwen2-72b-inst
 
 ACTIVE_LLM_CLIENT_DICT = {}
 
-ALL_CLIENT_LIST = [GPT3_5, GPT4, GPT4o, GPT4omini, ANTHROPIC_HAIKU, ANTHROPIC_SONNET, ANTHROPIC_OPUS, MISTRAL_7B,
-                   MISTRAL_NEMO_12B, MISTRAL_8X22B,
-                   MISTRAL_SMALL, MISTRAL_8X7B, MISTRAL_LARGE, GEMINI_FLASH, GEMINI_PRO, FIREWORKS_LLAMA3_1_8B,
-                   FIREWORKS_LLAMA3_1_405B, FIREWORKS_LLAMA3_1_70B, FIREWORKS_GEMMA2_9B, FIREWORKS_MYTHOMAXL2_13B,
-                   FIREWORKS_QWEN2_72B]
 
-
-def add_llm_clients(client_list):
+def init_llm_clients():
+    client_list = LlmClient.get_all_clients()
     clients_with_keys = []
     missing_key_map = {}
     for client in client_list:
@@ -519,7 +685,13 @@ def add_llm_clients(client_list):
             continue
     for key in missing_key_map:
         print("No key found for " + key)
+    status_service = LLMClientStatusService()
+    status_service.start()
     return clients_with_keys
+
+
+def stop_llm_clients():
+    llm_client_prompt_status_service().stop()
 
 
 def get_active_llm_clients():
@@ -543,9 +715,7 @@ def get_llm_client(model_name):
 
 
 if __name__ == "__main__":
-    # add_llm_clients([MISTRAL_7B, MISTRAL_8X22B, MISTRAL_SMALL, MISTRAL_8X7B, MISTRAL_LARGE, GPT3_5, GPT4, GPT4o,
-    #                ANTHROPIC_OPUS, ANTHROPIC_SONNET, ANTHROPIC_HAIKU, GEMINI_FLASH, GEMINI_PRO])
-    add_llm_clients([MISTRAL_7B])
+    init_llm_clients()
 
     TEST_PROMPT = """
     This is a test of your ability to respond to a request with JSON.  Please respond with a JSON object in the following format:
@@ -558,7 +728,7 @@ if __name__ == "__main__":
     for client in ACTIVE_LLM_CLIENT_DICT.values():
         print("Testing " + client.model_name)
         try:
-            response = client.prompt(TEST_PROMPT, json_output=True)
+            response = client.prompt(str(uuid.uuid4()), TEST_PROMPT, json_output=True)
         except Exception as e:
             print("Exception: " + str(e))
             continue

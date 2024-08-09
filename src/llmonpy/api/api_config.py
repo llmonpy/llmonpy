@@ -13,16 +13,14 @@
 #   COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 #   OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 from llmonpy.config import LLMonPyConfig, DEFAULT_THREAD_POOL_SIZE
-from llmonpy.llm_client import ALL_CLIENT_LIST
 from llmonpy.system_services import system_services
 
 
 class APIConfig(LLMonPyConfig):
     def __init__(self, data_directory=None,
-                 client_list=ALL_CLIENT_LIST,
                  thread_pool_size=DEFAULT_THREAD_POOL_SIZE,
                  port=2304):
-        super().__init__(data_directory, client_list, thread_pool_size)
+        super().__init__(data_directory, thread_pool_size)
         self.port = port
 
 
