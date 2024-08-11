@@ -16,6 +16,7 @@ import os
 
 from flask import jsonify, request, send_from_directory
 
+from llm_client import llm_client_prompt_status_service
 from llmonpy.api.api_app import app
 from llmonpy.api.api_config import api_config
 from llmonpy.api.api_system_startup import api_system_startup, api_system_stop
@@ -90,6 +91,14 @@ def get_events_for_step():
     result_list = trace_log_service().get_events_for_step(step_name)
     dict_list = [trace_info.to_dict() for trace_info in result_list]
     return jsonify(dict_list)
+
+
+@app.route('/api/get_all_llm_client_status')
+def get_all_llm_client_status():
+    status_list = llm_client_prompt_status_service().get_all_status()
+    for i in range(len(status_list)):
+        status_list[i] = status_list[i].to_dict()
+    return jsonify(status_list)
 
 
 def init_api_directory():

@@ -77,23 +77,9 @@ def backoff_after_exception(attempt):
     time.sleep(delay_time)
 
 
-PROMPT_START_EVENT = 1
-PROMPT_RATE_LIMIT_EVENT = 2
-PROMPT_GOT_TICKET_EVENT = 3
-PROMPT_DONE_EVENT = 4
-PROMPT_EXCEPTION_EVENT = 5
-
 PROMPT_STATE_WAITING_FOR_TICKET = 1
 PROMPT_STATE_HAVE_TICKET = 2
 PROMPT_STATE_DONE = 3
-
-
-class LLMClientPromptEvent:
-    def __init__(self, prompt_id: str, client_name: str, event:int):
-        self.prompt_id = prompt_id
-        self.client_name = client_name
-        self.event = event
-        self.event_time = time.time()
 
 
 class LLMClientPromptStatus:
@@ -108,11 +94,16 @@ class LLMClientStatus:
     def __init__(self, client_name: str):
         self.client_name = client_name
         self.in_flight_prompt_dict = {}
+        self.in_flight_count = 0
         self.waiting_for_ticket = 0
         self.completed_prompt_count = 0
         self.exception_count = 0
         self.rate_limit_count = 0
         self.slowest_prompt = 0
+
+    def calculate_all(self, current_time):
+        self.in_flight_count = len(self.in_flight_prompt_dict)
+        self.calculate_slowest_prompt(current_time)
 
     def calculate_slowest_prompt(self, current_time):
         slowest = 0
@@ -121,6 +112,11 @@ class LLMClientStatus:
             if prompt_time > slowest:
                 slowest = prompt_time
         self.slowest_prompt = slowest
+
+    def to_dict(self):
+        result = copy.copy(vars(self))
+        del result["in_flight_prompt_dict"]
+        return result
 
 
 class LLMClientStatusService:
@@ -198,21 +194,25 @@ class LLMClientStatusService:
         client_status_list = []
         all_status = LLMClientStatus("All")
         current_time = time.time()
-        all_in_flight = 0
         for client_status in frozen_status_dict.values():
-            client_status.calculate_slowest_prompt(current_time)
+            client_status.calculate_all(current_time)
             if client_status.slowest_prompt > all_status.slowest_prompt:
                 all_status.slowest_prompt = client_status.slowest_prompt
             client_status_list.append(client_status)
-            all_in_flight += len(client_status.in_flight_prompt_dict)
+            all_status.in_flight_count += client_status.in_flight_count
             all_status.waiting_for_ticket += client_status.waiting_for_ticket
             all_status.completed_prompt_count += client_status.completed_prompt_count
             all_status.exception_count += client_status.exception_count
             all_status.rate_limit_count += client_status.rate_limit_count
-        return all_status, all_in_flight
+        client_status_list.sort(key=lambda x: x.client_name)
+        result = [all_status]
+        result.extend(client_status_list)
+        return result
 
     def report_status(self):
-        current_status, in_flight = self.get_all_status()
+        all_status_list = self.get_all_status()
+        current_status = all_status_list[0]
+        in_flight = current_status.in_flight_count
         waiting = current_status.waiting_for_ticket
         completed = current_status.completed_prompt_count
         slowest = current_status.slowest_prompt
