@@ -140,3 +140,4 @@ This command will return a list of prompt names.  To get the actual training dat
 llmonpy qbawa -name=<prompt_name>
 ```
 
+[You can learn more about the training data here.](docs/training_data.md)
