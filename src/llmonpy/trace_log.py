@@ -249,6 +249,13 @@ class TourneyResult(TourneyResultInterface):
             tourney_result.start_time = datetime.fromisoformat(tourney_result.start_time)
         return tourney_result
 
+    @staticmethod
+    def from_file(file_path):
+        with open(file_path, "r") as file:
+            dict_list = json.load(file)
+        result_list = [TourneyResult.from_dict(dictionary) for dictionary in dict_list]
+        return result_list
+
 
 class StepTraceData:
     def __init__(self, trace_id, trace_group_id, variation_of_trace_id, step_id, step_index,
