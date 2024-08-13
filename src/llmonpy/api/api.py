@@ -16,7 +16,7 @@ import os
 
 from flask import jsonify, request, send_from_directory
 
-from llm_client import llm_client_prompt_status_service
+from llmonpy.llm_client import llm_client_prompt_status_service
 from llmonpy.api.api_app import app
 from llmonpy.api.api_config import api_config
 from llmonpy.api.api_system_startup import api_system_startup, api_system_stop

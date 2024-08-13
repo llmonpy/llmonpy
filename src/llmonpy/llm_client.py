@@ -25,6 +25,7 @@ from queue import Queue, Empty
 
 import anthropic
 from fireworks.client import Fireworks
+from fireworks.client.error import RateLimitError
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
@@ -160,9 +161,9 @@ class LLMClientStatusService:
         with self.status_lock:
             client_status = self.client_status_dict[client_name]
             client_status.waiting_for_ticket += 1
+            client_status.rate_limit_count += 1
             prompt_status = client_status.in_flight_prompt_dict[prompt_id]
             prompt_status.state = PROMPT_STATE_WAITING_FOR_TICKET
-            prompt_status.rate_limit_count += 1
 
     def got_ticket(self, prompt_id, client_name):
         with self.status_lock:
@@ -214,9 +215,10 @@ class LLMClientStatusService:
         current_status = all_status_list[0]
         in_flight = current_status.in_flight_count
         waiting = current_status.waiting_for_ticket
+        rate_exceptions = current_status.rate_limit_count
         completed = current_status.completed_prompt_count
         slowest = current_status.slowest_prompt
-        print(f"\n{current_status.client_name} in_flight:{in_flight} rate_limited:{waiting} completed:{completed} slowest:{slowest:.3f}\n")
+        print(f"\n{current_status.client_name} in_flight:{in_flight} waiting_for_ticket:{waiting} completed:{completed} rate_exceptions:{rate_exceptions} slowest:{slowest:.3f}\n")
         self.start_timer()
 
     @staticmethod
@@ -294,6 +296,9 @@ class LlmClient:
                 else:
                     llm_client_prompt_status_service().prompt_done(prompt_id, self.model_name)
                     break
+            except RateLimitError as re:
+                self.wait_for_ticket_after_rate_limit_exceeded(prompt_id)
+                continue
             except Exception as e:
                 if getattr(e, "status_code", None) is not None and e.status_code == 429:
                     self.wait_for_ticket_after_rate_limit_exceeded(prompt_id)
