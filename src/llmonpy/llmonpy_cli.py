@@ -22,7 +22,7 @@ def llmonpy_cli():
     args = parser.parse_args()
     llmonpy_start()
     model_list = [FIREWORKS_LLAMA3_1_8B, FIREWORKS_MYTHOMAXL2_13B, GPT4o, GPT3_5, GPT4omini]
-    first_round_info_list = make_model_list(ModelTemp(model_list, [0.0, 0.25, 0.50, 0.75]))
+    first_round_info_list = make_model_list(ModelTemp(model_list, [0.0, 0.75]))
     aggregate_info_list = make_model_list(ModelTemp(model_list,[0.0, 0.75]))
     judge_client_info_list = make_model_list(ModelTemp(model_list, 0.0))
 
