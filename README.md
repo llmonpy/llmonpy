@@ -51,8 +51,8 @@ llmonpy prompt
 ```
 
 Tourneys, Cycles, and GARs require several models to be available.  To make this easier for new users, these tests just
-require the FIREWORKS_API_KEY.  I chose Fireworks.ai as the default provider because they have a large number of fast,
-high-quality models available.
+require the FIREWORKS_API_KEY and OPENAI_API_KEY.  I chose Fireworks.ai and OpenAI as the default providers because they have a 
+large number of fast, high-quality models available.
 
 To test the tourneys, you can use the following command (it will cost about $0.03 or less):
 
