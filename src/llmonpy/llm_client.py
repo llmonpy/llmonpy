@@ -27,8 +27,7 @@ import anthropic
 from fireworks.client import Fireworks
 from fireworks.client.error import RateLimitError
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
-from mistralai.client import MistralClient
-from mistralai.models.chat_completion import ChatMessage
+from mistralai import Mistral
 from nothingpy import Nothing
 from openai import OpenAI
 import google.generativeai as genai
@@ -312,6 +311,7 @@ class LlmClient:
         return result
 
     def wait_for_ticket_after_rate_limit_exceeded(self, prompt_id):
+        print("rate limit exceeded " + self.model_name)
         llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
         self.rate_limiter.wait_for_ticket_after_rate_limit_exceeded()
         llm_client_prompt_status_service().got_ticket(prompt_id, self.model_name)
@@ -347,7 +347,7 @@ class OpenAIModel(LlmClient):
         system_prompt = system_prompt if system_prompt is not Nothing else "You are an expert at analyzing text."
         result = None
         response_text = Nothing
-        response_format = "json_object" if json_output else "auto"
+        response_format = "json_object" if json_output else "text"
         # retries just for json format errors
         for attempt in range(PROMPT_RETRIES):
             completion = self.client.chat.completions.create(
@@ -455,21 +455,21 @@ class MistralLlmClient(LlmClient):
 
     def start(self):
         key = get_api_key("MISTRAL_API_KEY")
-        self.client = MistralClient(api_key=key)
+        self.client = Mistral(api_key=key)
 
     def do_prompt(self, prompt_text, system_prompt="You are an expert at analyzing text.", json_output=False, temp=0.0,
                   max_output=None):
         system_prompt = system_prompt if system_prompt is not Nothing else "You are an expert at analyzing text."
-        response_format = "json_object" if json_output else "auto"
+        response_format = "json_object" if json_output else "text"
         prompt_messages = [
-            ChatMessage(role="system", content=system_prompt),
-            ChatMessage(role="user", content=prompt_text)
+            { "role": "system", "content": system_prompt },
+            { "role": "user", "content": prompt_text }
         ]
         result = None
         response_text = Nothing
         # retries just for json format errors
         for attempt in range(PROMPT_RETRIES):
-            response = self.client.chat(
+            response = self.client.chat.complete(
                 model=self.model_name,
                 response_format={"type": response_format},
                 max_tokens=max_output,
@@ -594,7 +594,7 @@ class FireworksAIModel(LlmClient):
         system_prompt = system_prompt if system_prompt is not Nothing else "You are an expert at analyzing text."
         result = None
         response_text = Nothing
-        response_format = "json_object" if json_output else "auto"
+        response_format = "json_object" if json_output else "text"
         # retries just for json format errors
         for attempt in range(PROMPT_RETRIES):
             if self.system_role_supported:
@@ -649,7 +649,7 @@ MISTRAL_LARGE = MistralLlmClient("mistral-large-2407", 120000, MISTRAL_RATE_LIMI
 #                                     TOGETHER_THREAD_POOL, 0.10, 0.10)
 GPT3_5 = OpenAIModel('gpt-3.5-turbo-0125', 15000, RateLlmiter(10000, 2000000), OPENAI_THREAD_POOL, 0.5, 1.5)
 GPT4 = OpenAIModel('gpt-4-turbo-2024-04-09', 120000, RateLlmiter(10000, 2000000), OPENAI_THREAD_POOL, 10.0, 30.0)
-GPT4o = OpenAIModel('gpt-4o', 120000, RateLlmiter(10000, 30000000), OPENAI_THREAD_POOL, 2.5, 15.0)
+GPT4o = OpenAIModel('gpt-4o-2024-08-06', 120000, RateLlmiter(10000, 30000000), OPENAI_THREAD_POOL, 2.5, 15.0)
 GPT4omini = OpenAIModel('gpt-4o-mini', 120000, RateLlmiter(10000, 15000000), OPENAI_THREAD_POOL, 0.15, 0.60)
 ANTHROPIC_OPUS = AnthropicModel("claude-3-opus-20240229", 180000, RateLlmiter(4000, 400000), ANTHROPIC_THREAD_POOL,
                                 15.0, 75.0)

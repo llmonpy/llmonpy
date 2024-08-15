@@ -25,6 +25,7 @@ class LLMonPypeline:
         result = self.__class__.__name__
         return result
 
+    # recorder included as a parameter so that examples for ICL are part of input
     def get_input_dict(self, recorder: TraceLogRecorderInterface):
         raise NotImplementedError()
 

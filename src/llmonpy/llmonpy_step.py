@@ -66,6 +66,13 @@ class LlmModelInfo:
     def get_model_name(self):
         return self.model_name
 
+    def get_full_description(self):
+        result = self.model_name
+        temp = self.get_temp()
+        if temp is not None:
+            result += " { temp: " + str(temp) + " }"
+        return result
+
     def get_temp(self):
         result = self.client_settings_dict.get(TEMP_SETTING_KEY, None)
         return result
@@ -138,6 +145,28 @@ class DictLLMonPyStepOutput(LLMonPyStepOutput):
     @staticmethod
     def from_dict(dict):
         result = DictLLMonPyStepOutput(dict)
+        return result
+
+
+class TrackedOutput(LLMonPyStepOutput):
+    def __init__(self, step_id=None, step_output=None, llm_model_info=None, output_id=None):
+        self.step_id = step_id
+        self.output_id = str(uuid.uuid4()) if output_id is None else output_id
+        self.llm_model_info = llm_model_info
+        self.step_output = step_output
+
+    def to_dict(self):
+        result = copy.deepcopy(vars(self))
+        result["step_output"] = self.step_output.to_dict()
+        if result["llm_model_info"] is not None:
+            result["llm_model_info"] = result["llm_model_info"].to_dict()
+        return result
+
+    @staticmethod
+    def from_dict(dictionary):
+        dictionary["step_output"] = DictLLMonPyStepOutput.from_dict(dictionary["step_output"])
+        dictionary["llm_model_info"] = LlmModelInfo.from_dict(dictionary["llm_model_info"])
+        result = TrackedOutput(**dictionary)
         return result
 
 

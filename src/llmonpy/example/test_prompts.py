@@ -64,7 +64,7 @@ if __name__ == "__main__":
     llmonpy_start()
     try:
         print("Running TestLLMonPyPrompt")
-        model_info = LlmModelInfo(FIREWORKS_QWEN2_72B.model_name)
+        model_info = LlmModelInfo(MISTRAL_7B.model_name)
         step = LLMonPyPromptRunner(None, TestLLMonPyPrompt("LLMonPy"), model_info)
         step.record_step()
         result = step.get_step_output()
