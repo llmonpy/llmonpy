@@ -100,6 +100,18 @@
             }
         },
         {
+            "id": 7,
+            "instance": "Mary listens to the Grateful Dead, she gets depressed.",
+            "annotations": {
+                "grammaticality": {
+                    "majority_human": "Yes",
+                    "individual_human_scores": [
+                        "Yes"
+                    ]
+                }
+            }
+        },
+        {
             "id": 8,
             "instance": "The angrier Mary got, the more she looked at pictures.",
             "annotations": {
@@ -232,6 +244,18 @@
             }
         },
         {
+            "id": 19,
+            "instance": "He can not have been working.",
+            "annotations": {
+                "grammaticality": {
+                    "majority_human": "Yes",
+                    "individual_human_scores": [
+                        "Yes"
+                    ]
+                }
+            }
+        },
+        {
             "id": 20,
             "instance": "You will believe Bob.",
             "annotations": {
@@ -328,6 +352,18 @@
             }
         },
         {
+            "id": 28,
+            "instance": "The box contained the ball from the tree.",
+            "annotations": {
+                "grammaticality": {
+                    "majority_human": "No",
+                    "individual_human_scores": [
+                        "No"
+                    ]
+                }
+            }
+        },
+        {
             "id": 29,
             "instance": "The tube was escaped by gas.",
             "annotations": {
@@ -364,6 +400,54 @@
             }
         },
         {
+            "id": 32,
+            "instance": "What the water did to the bottle was fill it.",
+            "annotations": {
+                "grammaticality": {
+                    "majority_human": "No",
+                    "individual_human_scores": [
+                        "No"
+                    ]
+                }
+            }
+        },
+        {
+            "id": 33,
+            "instance": "What the water did to the whole bottle was fill it.",
+            "annotations": {
+                "grammaticality": {
+                    "majority_human": "No",
+                    "individual_human_scores": [
+                        "No"
+                    ]
+                }
+            }
+        },
+        {
+            "id": 34,
+            "instance": "The tank leaked the fluid free.",
+            "annotations": {
+                "grammaticality": {
+                    "majority_human": "Yes",
+                    "individual_human_scores": [
+                        "Yes"
+                    ]
+                }
+            }
+        },
+        {
+            "id": 35,
+            "instance": "John lay the ball in the box.",
+            "annotations": {
+                "grammaticality": {
+                    "majority_human": "Yes",
+                    "individual_human_scores": [
+                        "Yes"
+                    ]
+                }
+            }
+        },
+        {
             "id": 36,
             "instance": "John owns the book.",
             "annotations": {
@@ -378,6 +462,18 @@
         {
             "id": 37,
             "instance": "We persuaded Mary to leave and Sue to stay.",
+            "annotations": {
+                "grammaticality": {
+                    "majority_human": "Yes",
+                    "individual_human_scores": [
+                        "Yes"
+                    ]
+                }
+            }
+        },
+        {
+            "id": 38,
+            "instance": "Most people probably consider, even though the courts didn't actually find, Klaus guilty of murder.",
             "annotations": {
                 "grammaticality": {
                     "majority_human": "Yes",
@@ -484,6 +580,18 @@
             }
         },
         {
+            "id": 47,
+            "instance": "Mary intended John to go abroad.",
+            "annotations": {
+                "grammaticality": {
+                    "majority_human": "No",
+                    "individual_human_scores": [
+                        "No"
+                    ]
+                }
+            }
+        },
+        {
             "id": 48,
             "instance": "I remembered having kissed Mary.",
             "annotations": {
@@ -543,7 +651,18 @@
                 }
             }
         },
-
+        {
+            "id": 53,
+            "instance": "Mary claimed that eating cabbage, Holly shouldn't.",
+            "annotations": {
+                "grammaticality": {
+                    "majority_human": "Yes",
+                    "individual_human_scores": [
+                        "Yes"
+                    ]
+                }
+            }
+        },
         {
             "id": 54,
             "instance": "Mary came to be introduced by the bartender and I also came to be.",

@@ -106,31 +106,91 @@ class ColaPrompt(LLMonPyPrompt):
             self.id = id
 
 
-class ParallelStep(LLMonPypeline):
-    class LLMonPyOutput(LLMonPyStepOutput):
-        def __init__(self, response_list: [PassFailOutput]):
-            self.response_list = response_list
+class ColaFewShotPrompt(LLMonPyPrompt):
+    prompt_text = """
+    I would like you to evaluate a sentence for grammatical correctness.  Please respond with 'Yes' if the sentence is 
+    grammatical, and 'No" if it is not grammatical. Here are some examples of good responses:
+    
+    # Start of Examples
+    
+    sentence:
+    "Mary listens to the Grateful Dead, she gets depressed."
+    response:
+    Yes
+    
+    sentence:
+    "He can not have been working."
+    response:
+    Yes
+    
+    sentence:
+    "The box contained the ball from the tree."
+    response:
+    No
+    
+    sentence:
+    "What the water did to the bottle was fill it."
+    response:
+    No
+    
+    sentence:
+    "What the water did to the whole bottle was fill it."
+    response:
+    No
 
-        def to_dict(self):
-            result = {"response_list": [response.to_dict() for response in self.response_list]}
-            return result
+    sentence:
+    "The tank leaked the fluid free."
+    response:
+    Yes
 
-    def __init__(self, prompt, model_info_list):
-        self.prompt = prompt
-        self.model_info_list = model_info_list
+    sentence:
+    "John lay the ball in the box."
+    response:
+    Yes
+    
+    sentence:
+    "Most people probably consider, even though the courts didn't actually find, Klaus guilty of murder."
+    response:
+    Yes
+    
+    sentence:
+    "Mary intended John to go abroad."
+    response:
+    No
+    
+    sentence:
+    "Mary claimed that eating cabbage, Holly shouldn't."
+    response:
+    Yes
+    
+    # End of Examples
+    
+    
+    Given the following sentence, determine if it is grammatically correct or not. Write 'Yes' if it is grammatical, 
+    and 'No' if it is not.  Do not include any other text in your response. 
+    
+    sentence:
+    "{{ sentence }}"
+    response:
 
-    def get_input_dict(self, recorder: TraceLogRecorderInterface):
-        model_info_list = [model_info.to_dict() for model_info in self.model_info_list]
-        result = {"prompt_template": self.prompt.get_prompt_text(),
-                  "prompt_input_dict": self.prompt.to_dict(),
-                  "model_list": model_info_list}
+    """
+    system_prompt = "You are an expert at english grammar."
+    output_format = LLMONPY_OUTPUT_FORMAT_TEXT
+
+    def __init__(self, id, sentence, correct_answer):
+        super().__init__()
+        self.id = id
+        self.sentence = sentence
+        self.correct_answer = correct_answer
+
+    def output_from_string(self, string):
+        result = self.LLMonPyOutput(self.id, string, self.correct_answer)
         return result
 
-    def execute_step(self, recorder: TraceLogRecorderInterface):
-        step_list = create_prompt_steps(recorder, self.prompt, self.model_info_list)
-        self.run_parallel_steps(step_list)
-        response_list = [step.get_step_output() for step in step_list]
-        return self.LLMonPyOutput(response_list)
+    class LLMonPyOutput(MatchPassFailOutput):
+        def __init__(self, id, generated_answer, correct_answer):
+            super().__init__(generated_answer, correct_answer)
+            self.id = id
 
 
 class ColaJuryStep(LLMonPypeline):
@@ -168,7 +228,7 @@ class ColaJuryStep(LLMonPypeline):
         return result
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        judge_prompt = ColaPrompt(self.test_data.id, self.test_data.sentence, self.test_data.answer)
+        judge_prompt = ColaFewShotPrompt(self.test_data.id, self.test_data.sentence, self.test_data.answer)
         step_list = create_prompt_steps(recorder, judge_prompt, self.model_info_list)
         self.run_parallel_steps(step_list)
         response_list = []
@@ -213,9 +273,6 @@ class ColaPypeLine(LLMonPypeline):
             step_list.append(step)
         self.run_parallel_steps(step_list)
         response_list = [step.get_step_output() for step in step_list]
-        model_performance_dict = {}
-        for response in response_list:
-
         result = self.LLMonPyOutput(response_list)
         return result
 
@@ -223,6 +280,7 @@ FIVE_SMALL_MODEL_JUDGE_LIST =[ANTHROPIC_HAIKU, GPT4omini, GEMINI_FLASH, FIREWORK
 ALL_SMALL_MODEL_JUDGE_LIST = [ANTHROPIC_HAIKU, GPT4omini, GEMINI_FLASH, FIREWORKS_LLAMA3_1_8B, FIREWORKS_MYTHOMAXL2_13B, MISTRAL_7B, GPT3_5]
 LARGE_MODEL_JUDGE_LIST = [GPT4o, ANTHROPIC_SONNET, FIREWORKS_LLAMA3_1_405B, GEMINI_PRO, MISTRAL_LARGE]
 MIXED_MODEL_LIST_1 = [ANTHROPIC_HAIKU, GPT4omini, GEMINI_FLASH, GPT4o, ANTHROPIC_SONNET]
+MIXED_MODEL_LIST_2 = [ANTHROPIC_HAIKU, GPT4omini, GEMINI_FLASH, FIREWORKS_LLAMA3_1_8B, FIREWORKS_MYTHOMAXL2_13B, MISTRAL_7B, GPT3_5, GEMINI_PRO, GPT4o, ANTHROPIC_SONNET, MISTRAL_LARGE]
 
 
 if __name__ == "__main__":
@@ -232,22 +290,28 @@ if __name__ == "__main__":
         if len(sys.argv) >= 2:
             cola_file_path = sys.argv[1]
         cola_test_list = ColaTestData.read_from_file(cola_file_path)
-        model_info_list = make_model_list(ModelTemp(FIVE_SMALL_MODEL_JUDGE_LIST, [0.0]))
+        model_info_list = make_model_list(ModelTemp([GPT4omini], [0.0]))
         subset = cola_test_list[:100]
         cola_pipeline_step = ColaPypeLine(subset, model_info_list).create_step(None)
         cola_pipeline_step.record_step()
         response_list = cola_pipeline_step.get_step_output().response_list
         passed_count = 0
         failed_count = 0
+        failed_list = []
         for cola_test in response_list:
             if cola_test.did_pass():
                 print("Passed")
                 passed_count += 1
             else:
                 print("Failed test for sentence: " + cola_test.test_data.sentence)
+                failed_list.append(cola_test)
                 failed_count += 1
         print("Passed: " + str(passed_count))
         print("Failed: " + str(failed_count))
+        failed_list = [response.to_dict() for response in failed_list]
+        results_path = cola_file_path.replace(".json", "_results.json")
+        with open(results_path, "w") as results_file:
+            json.dump(failed_list, results_file, indent=4)
     except Exception as e:
         stack_trace = traceback.format_exc()
         print(stack_trace)

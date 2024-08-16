@@ -18,7 +18,7 @@ import os
 from llmonpy.llm_client import init_llm_clients
 from llmonpy.system_services import add_service_to_stop
 
-DEFAULT_THREAD_POOL_SIZE = 50
+DEFAULT_THREAD_POOL_SIZE = 100
 DEFAULT_DATA_DIRECTORY = "data"
 
 

@@ -40,21 +40,21 @@ from llmonpy.system_services import add_service_to_stop
 PROMPT_RETRIES = 5
 RATE_LIMIT_RETRIES = 20
 BASE_RETRY_DELAY = 30  # seconds
-DEFAULT_THREAD_POOL_SIZE = 400
+DEFAULT_THREAD_POOL_SIZE = 50
 TOKEN_UNIT_FOR_COST = 1000000
 
 LLMONPY_API_PREFIX = "LLMONPY_"
 
-MISTRAL_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
+MISTRAL_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=20)
 ANTHROPIC_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 OPENAI_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 DEEPSEEK_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 GEMINI_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 TOGETHER_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
-FIREWORKS_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
-MISTRAL_RATE_LIMITER = RateLlmiter(1200, 20000000)
+FIREWORKS_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=20)
+MISTRAL_RATE_LIMITER = RateLlmiter(200, 20000000)
 TOGETHER_RATE_LIMITER = RateLlmiter(600, 20000000)
-FIREWORKS_RATE_LIMITER = RateLlmiter(600, 20000000)
+FIREWORKS_RATE_LIMITER = RateLlmiter(100, 20000000)
 
 
 class LLMonPyNoKeyForApiException(Exception):
@@ -658,7 +658,7 @@ ANTHROPIC_SONNET = AnthropicModel("claude-3-5-sonnet-20240620", 180000, RateLlmi
 ANTHROPIC_HAIKU = AnthropicModel("claude-3-haiku-20240307", 180000, RateLlmiter(4000, 400000), ANTHROPIC_THREAD_POOL,
                                  0.25, 1.25)
 # DEEPSEEK = DeepseekModel("deepseek-chat", 24000, RateLlmiter(20, MINUTE_TIME_WINDOW), DEEPSEEK_EXECUTOR)
-GEMINI_FLASH = GeminiModel("gemini-1.5-flash", 120000, RateLlmiter(1000, 4000000), GEMINI_THREAD_POOL, 0.075, .15)
+GEMINI_FLASH = GeminiModel("gemini-1.5-flash", 120000, RateLlmiter(480, 4000000), GEMINI_THREAD_POOL, 0.075, .15)
 GEMINI_PRO = GeminiModel("gemini-1.5-pro", 120000, RateLlmiter(360, 4000000), GEMINI_THREAD_POOL, 3.5, 10.5)
 FIREWORKS_LLAMA3_1_8B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-8b-instruct", 120000,
                                          FIREWORKS_RATE_LIMITER, FIREWORKS_THREAD_POOL, 0.20, 0.20)

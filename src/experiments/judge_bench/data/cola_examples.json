@@ -1,0 +1,139 @@
+{
+  "dataset": "The Corpus of Linguistic Acceptability (Warstadt et al., Transactions of the Association for Computational Linguistics 2019)",
+  "dataset_url": "https://nyu-mll.github.io/CoLA/",
+  "expert_annotator": "true",
+  "original_prompt": false,
+  "annotations": [
+    {
+      "metric": "grammaticality",
+      "category": "categorical",
+      "prompt": "Given the following sentence, determine if it is grammatically correct or not. Write 'Yes' if it is grammatical, and 'No' if it is not:\n\n{{ instance }}",
+      "labels_list": [
+        "Yes",
+        "No"
+      ]
+    }
+  ],
+  "instances": [
+    {
+      "id": 7,
+      "instance": "Mary listens to the Grateful Dead, she gets depressed.",
+      "annotations": {
+        "grammaticality": {
+          "majority_human": "Yes",
+          "individual_human_scores": [
+            "Yes"
+          ]
+        }
+      }
+    },
+    {
+      "id": 19,
+      "instance": "He can not have been working.",
+      "annotations": {
+        "grammaticality": {
+          "majority_human": "Yes",
+          "individual_human_scores": [
+            "Yes"
+          ]
+        }
+      }
+    },
+    {
+      "id": 28,
+      "instance": "The box contained the ball from the tree.",
+      "annotations": {
+        "grammaticality": {
+          "majority_human": "No",
+          "individual_human_scores": [
+            "No"
+          ]
+        }
+      }
+    },
+    {
+      "id": 32,
+      "instance": "What the water did to the bottle was fill it.",
+      "annotations": {
+        "grammaticality": {
+          "majority_human": "No",
+          "individual_human_scores": [
+            "No"
+          ]
+        }
+      }
+    },
+    {
+      "id": 33,
+      "instance": "What the water did to the whole bottle was fill it.",
+      "annotations": {
+        "grammaticality": {
+          "majority_human": "No",
+          "individual_human_scores": [
+            "No"
+          ]
+        }
+      }
+    },
+    {
+      "id": 34,
+      "instance": "The tank leaked the fluid free.",
+      "annotations": {
+        "grammaticality": {
+          "majority_human": "Yes",
+          "individual_human_scores": [
+            "Yes"
+          ]
+        }
+      }
+    },
+    {
+      "id": 35,
+      "instance": "John lay the ball in the box.",
+      "annotations": {
+        "grammaticality": {
+          "majority_human": "Yes",
+          "individual_human_scores": [
+            "Yes"
+          ]
+        }
+      }
+    },
+    {
+      "id": 38,
+      "instance": "Most people probably consider, even though the courts didn't actually find, Klaus guilty of murder.",
+      "annotations": {
+        "grammaticality": {
+          "majority_human": "Yes",
+          "individual_human_scores": [
+            "Yes"
+          ]
+        }
+      }
+    },
+    {
+      "id": 47,
+      "instance": "Mary intended John to go abroad.",
+      "annotations": {
+        "grammaticality": {
+          "majority_human": "No",
+          "individual_human_scores": [
+            "No"
+          ]
+        }
+      }
+    },
+    {
+      "id": 53,
+      "instance": "Mary claimed that eating cabbage, Holly shouldn't.",
+      "annotations": {
+        "grammaticality": {
+          "majority_human": "Yes",
+          "individual_human_scores": [
+            "Yes"
+          ]
+        }
+      }
+    }
+  ]
+}
