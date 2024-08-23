@@ -34,7 +34,7 @@ import google.generativeai as genai
 from together import Together
 
 from llmonpy.llmonpy_util import fix_common_json_encoding_errors
-from llmonpy.rate_llmiter import RateLlmiter
+from llmonpy.rate_llmiter import RateLlmiter, RateLimitedService
 from llmonpy.system_services import add_service_to_stop
 
 PROMPT_RETRIES = 5
@@ -260,7 +260,7 @@ class LlmClientResponse:
 """
 
 
-class LlmClient:
+class LlmClient(RateLimitedService):
     all_client_list = []
 
     def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
@@ -279,6 +279,16 @@ class LlmClient:
 
     def get_model_name(self):
         return self.model_name
+
+    def test_if_blocked(self):
+        result = True
+        try:
+            response = self.do_prompt("Hello? Respond with 'World'","You are a helpful assistant", False,
+                                      temp=0.0, max_output=10)
+            result = response.response_text is None
+        except Exception as e:
+            result = True
+        return result
 
     def prompt(self, prompt_id, prompt_text, system_prompt=Nothing, json_output=False, temp=0.0,
                max_output=None) -> LlmClientResponse:
@@ -734,12 +744,15 @@ if __name__ == "__main__":
     for client in ACTIVE_LLM_CLIENT_DICT.values():
         print("Testing " + client.model_name)
         try:
-            response = client.prompt(str(uuid.uuid4()), TEST_PROMPT, json_output=True)
+            response = client.test_if_blocked()
+            print(client.model_name + "blocked: " + str(response))
+            #response = client.prompt(str(uuid.uuid4()), TEST_PROMPT, json_output=True)
+            #print(str(response.response_dict) + " input cost: " + str(response.input_cost) + " output cost: " + str(
+            #    response.output_cost))
         except Exception as e:
             print("Exception: " + str(e))
             continue
-        print(str(response.response_dict) + " input cost: " + str(response.input_cost) + " output cost: " + str(
-            response.output_cost))
+
         print("Prompt completed")
     print("All tests completed")
     exit(0)

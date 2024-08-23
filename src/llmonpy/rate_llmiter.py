@@ -12,19 +12,31 @@
 #  WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
 #  COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 #  OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+import datetime
 import threading
+import time
 from queue import Queue, Empty
 
 
+class RateLimitedService:
+    def test_if_blocked(self):
+        raise NotImplementedError
+
+
 class UsedTicket:
-    def __init__(self, ticket: int, time_in_seconds: int, token_estimate: int):
+    def __init__(self, ticket_index:int, request_time:int, ticket: int, time_in_seconds: int,
+                 input_token_count_estimate: int):
         self.ticket = ticket
         self.time_in_seconds = time_in_seconds
-        self.token_estimate = token_estimate
+        self.input_token_count_estimate = input_token_count_estimate
+        self.granted_time_in_seconds = time_in_seconds
+
+
 
 
 class SecondTicketBucket:
-    def __init__(self, ticket_count):
+    def __init__(self, start_time_in_seconds, ticket_count):
+        self.start_time_in_seconds = start_time_in_seconds
         self.ticket_count = ticket_count
         self.used_ticket_list = []
 
@@ -34,6 +46,10 @@ class SecondTicketBucket:
             result = UsedTicket(self.ticket_count, time_in_seconds, token_estimate)
             self.used_ticket_list.append(result)
             self.ticket_count -= 1
+        return result
+
+    def get_used_ticket_count(self):
+        result = len(self.used_ticket_list)
         return result
 
     def apply_ramp_profile(self, profile_factor):
@@ -50,44 +66,51 @@ RAMP_PROFILE = [0.0333, 0.0666, 0.0999, 0.1332, 0.1665, 0.1998, 0.2331, 0.2664, 
 
 
 class MinuteTicketBucket:
-    def __init__(self, time, minute, second_ticket_count_list:[int] = None, second_bucket_list:[SecondTicketBucket] = None):
-        self.time = time
-        self.minute = minute
-        if second_ticket_count_list is not None:
+    def __init__(self, start_time_in_seconds, iso_date_string, max_tickets_per_second, start_ramp_ticket_count,
+                first_bucket_ticket_count, ramp_ticket_count_delta,
+                 second_bucket_list: [SecondTicketBucket] = None):
+        self.iso_date_string = iso_date_string
+        self.start_time_in_seconds = start_time_in_seconds
+        self.max_tickets_per_second = max_tickets_per_second
+        self.start_ramp_ticket_count = start_ramp_ticket_count
+        self.ramp_ticket_count_delta = ramp_ticket_count_delta
+        if second_bucket_list is None:
             self.second_bucket_list = []
-            for ticket_count in second_ticket_count_list:
-                self.second_bucket_list.append(SecondTicketBucket(ticket_count))
+            next_start_time = start_time_in_seconds
+            for index in range(60):
+                self.second_bucket_list.append(SecondTicketBucket(next_start_time, first_bucket_ticket_count))
+                next_start_time += 1
         else:
             self.second_bucket_list = second_bucket_list
 
-    def apply_ramp_profile(self, ramp_profile):
-        for index in range(60):
-            self.second_bucket_list[index].apply_ramp_profile(ramp_profile[index])
+    def get_last_bucket_ticket_used_count(self):
+        result = self.second_bucket_list[-1].get_used_ticket_count()
+        return result
 
-    @staticmethod
-    def create_full_speed_bucket(time, minute, ticket_count):
-        second_ticket_count_list = []
-        if ticket_count < 60:
-            # not optimal because ignoring remainder, but this an unimportant edge case
-            seconds_per_ticket = int(60 / ticket_count)
-            for index in range(60):
-                if index % seconds_per_ticket == 0:
-                    second_ticket_count_list.append(1)
-                else:
-                    second_ticket_count_list.append(0)
-        else:
-            tickets_per_second = ticket_count / 60
-            int_tickets_per_second = int(tickets_per_second)
-            remainder = tickets_per_second - int_tickets_per_second
-            accumulated_remainder = 0
-            for index in range(60):
-                tickets_in_bucket = int_tickets_per_second
-                if accumulated_remainder >= 1:
-                    tickets_in_bucket += 1
-                    accumulated_remainder = 0
-                accumulated_remainder += remainder
-                second_ticket_count_list.append(tickets_in_bucket)
-        result = MinuteTicketBucket(time, minute, second_ticket_count_list)
+    def create_next_minute_bucket(self, iso_date_string, time_in_seconds):
+        next_start_time = self.start_time_in_seconds + 60
+        next_minute_bucket = MinuteTicketBucket(iso_date_string, next_start_time, second_bucket_list=self.second_bucket_list)
+        return next_minute_bucket
+
+    def get_ticket(self, second_bucket_index, ticket_index):
+        time_in_seconds = time.time()
+        if self.total_ticket_count > 0:
+            result = self.second_bucket_list[second_bucket_index].get_ticket(time_in_seconds, token_estimate)
+            if result is not None:
+                self.used_ticket_count += 1
+        return result
+
+    def create_next_minute_bucket(self, iso_date_string, time_in_seconds):
+        next_start_time = self.start_time_in_seconds + 60
+        next_minute_bucket = MinuteTicketBucket(iso_date_string, next_start_time, second_bucket_list=self.second_bucket_list)
+        return next_minute_bucket
+
+    def get_ticket(self, second_bucket_index, ticket_index):
+        time_in_seconds = time.time()
+        if self.total_ticket_count > 0:
+            result = self.second_bucket_list[second_bucket_index].get_ticket(time_in_seconds, token_estimate)
+            if result is not None:
+                self.used_ticket_count += 1
         return result
 
 
@@ -98,6 +121,7 @@ class RateLlmiterMonitor:
 
     def __init__(self):
         self.rate_limiter_list = []
+        self.second_bucket_index = 0
         self.timer = threading.Timer(interval=1, function=self.add_tickets)
         self.timer.start()
 
@@ -105,8 +129,18 @@ class RateLlmiterMonitor:
         self.rate_limiter_list.append(rate_limiter)
 
     def add_tickets(self):
+        self.second_bucket_index = self.second_bucket_index % 60
+        time_in_seconds = int(time.time())
+        iso_date_string = datetime.datetime.fromtimestamp(time_in_seconds).isoformat()
+        buckets_to_log = []
         for rate_limiter in self.rate_limiter_list:
-            rate_limiter.add_tickets()
+            if self.second_bucket_index == 0:
+                last_bucket = rate_limiter.refresh_minute_bucket(time_in_seconds, iso_date_string)
+                if last_bucket is not None:
+                    buckets_to_log.append(last_bucket)
+            else:
+                rate_limiter.release_tickets()
+        self.second_bucket_index += 1
         self.timer = threading.Timer(interval=1, function=self.add_tickets)
         try:
             self.timer.start()
@@ -118,6 +152,59 @@ class RateLlmiterMonitor:
         if RateLlmiterMonitor._instance is None:
             RateLlmiterMonitor._instance = RateLlmiterMonitor()
         return RateLlmiterMonitor._instance
+
+
+class BucketRateLimiter:
+    def __init__(self, request_per_minute, tokens_per_minute, rate_limited_service: RateLimitedService):
+        self.request_per_minute = request_per_minute
+        self.tokens_per_minute = tokens_per_minute
+        self.rate_limited_service = rate_limited_service
+        self.next_request_index = 0
+        self.current_minute_bucket = None
+        if request_per_minute < 60:
+            self.start_ramp_ticket_count = 1
+            self.max_tickets_per_second = 1
+        else:
+            self.max_tickets_per_second = int(request_per_minute / 60)
+            self.start_ramp_second_ticket_count = int((request_per_minute / 60) * 0.25)
+            self.ramp_ticket_count_delta = int((request_per_minute / 60) * 0.10)
+            if self.ramp_ticket_count_delta < 1:
+                self.ramp_ticket_count_delta = 1
+            if self.start_ramp_second_ticket_count < 1:
+                self.start_ramp_second_ticket_count = 1
+        self.bucket_lock = threading.Lock()
+        RateLlmiterMonitor.get_instance().add_rate_limiter(self)
+
+    def refresh_minute_bucket(self, time_in_seconds, iso_date_string):
+        last_minute_bucket = self.current_minute_bucket
+        first_bucket_ticket_count = last_minute_bucket.get_last_bucket_ticket_used_count() if last_minute_bucket is not None else self.start_ramp_ticket_count
+        if first_bucket_ticket_count < self.start_ramp_ticket_count:
+            first_bucket_ticket_count = self.start_ramp_ticket_count
+        self.current_minute_bucket = MinuteTicketBucket(time_in_seconds, iso_date_string, self.max_tickets_per_second,
+                                                        self.start_ramp_ticket_count, first_bucket_ticket_count,
+                                                        self.ramp_ticket_count_delta)
+        return last_minute_bucket
+
+    def release_tickets(self):
+        with self.bucket_lock:
+            released_ticket_list = self.current_minute_bucket.release_tickets()
+        for ticket in released_ticket_list:
+            release tickets
+
+    def get_ticket(self):
+        with self.bucket_lock:
+            request_id = self.next_request_index
+            self.next_request_index += 1
+            ticket = self.current_minute_bucket.get_ticket(request_id)
+        if ticket.is_rate_limited():
+            ticket.wait()
+        return ticket
+
+    def wait_for_ticket_after_rate_limit_exceeded(self):
+        should pass in the used ticket for original token
+        deletes tickets current & future seconds
+        sets rate limited to true
+        rate limited requests stored in list for no longer rate limited
 
 
 class RateLlmiter:
