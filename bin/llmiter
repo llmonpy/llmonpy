@@ -1,0 +1,3 @@
+#!/bin/bash
+
+python3 src/llmonpy/llmonpy_cli.py llmiter $1

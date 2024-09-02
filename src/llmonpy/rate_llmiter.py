@@ -144,6 +144,11 @@ class SecondTicketBucket:
     def finish_request(self, ticket: RateLlmiterTicket):
         self.finished_ticket_list.append(ticket)
 
+    def had_activity(self):
+        result = self.second_requested_ticket_count > 0 or self.issued_ticket_count > 0 or \
+            len(self.finished_ticket_list) > 0 or len(self.overflow_request_list) > 0 or len(self.rate_limited_request_list) > 0
+        return result
+
     def process_ticket_request(self, ticket):
         self.issue_ticket(ticket)
         return ticket
@@ -441,7 +446,16 @@ class RateLlmiterGraph:
         self.max_value = 0
         self.collect_data()
 
+    def trim_inactive_seconds(self):
+        last_minute_bucket = self.minute_bucket_list[-1]
+        for index in range(59, -1, -1):
+            if last_minute_bucket.second_bucket_list[index].had_activity():
+                break
+            else:
+                last_minute_bucket.second_bucket_list.pop()
+
     def collect_data(self):
+        self.trim_inactive_seconds()
         for minute_bucket in self.minute_bucket_list:
             for second_bucket in minute_bucket.second_bucket_list:
                 self.tickets_issued_count_list.append(second_bucket.issued_ticket_count)
