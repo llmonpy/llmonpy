@@ -14,17 +14,33 @@
 #  OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 import copy
 import datetime
+import json
+import os
 import threading
 import time
+from pathlib import Path
 from queue import Queue, Empty
+import matplotlib.pyplot as plt
 
 MIN_TEST_IF_SERVICE_RESUMED_INTERVAL = 10
 MAX_TEST_IF_SERVICE_RESUMED_INTERVAL = 120
 INTERVAL_BACKOFF_RATE = 2.5
 
+PLOT_FONT_SIZE = 8
+
+# For graph names, model name can include / characters, so we need to sanitize the name
+def sanitize_file_name(file_name):
+    result = file_name.replace("/", "-")
+    return result
+
+
 class RateLimitedService:
     def test_if_blocked(self) -> bool:
         raise NotImplementedError
+
+    def get_service_name(self) -> str:
+        raise NotImplementedError
+
 
 
 class RateLimitedEvent:
@@ -36,6 +52,15 @@ class RateLimitedEvent:
 
     def is_waiting(self):
         result = self.reissued_second_bucket_id is None
+        return result
+
+    def to_dict(self):
+        result = copy.deepcopy(vars(self))
+        return result
+
+    @staticmethod
+    def from_dict(dict):
+        result = RateLimitedEvent(**dict)
         return result
 
 
@@ -57,11 +82,24 @@ class RateLlmiterTicket:
         self.issued_second_bucket_id = second_bucket_id
 
     def add_rate_limited_event(self, second_bucket_id):
+        self.issued_ticket = None
+        self.issued_second_bucket_id = None
         rate_limited_event = RateLimitedEvent(self.issued_second_bucket_id, second_bucket_id)
         self.rate_limit_event_list.append(rate_limited_event)
 
     def resolve_rate_limited_event(self, second_bucket_id):
         self.rate_limit_event_list[-1].reissued_second_bucket_id = second_bucket_id
+
+    def to_dict(self):
+        result = copy.deepcopy(vars(self))
+        result["rate_limit_event_list"] = [event.to_dict() for event in self.rate_limit_event_list]
+        return result
+
+    @staticmethod
+    def from_dict(dict):
+        dict["rate_limit_event_list"] = [RateLimitedEvent.from_dict(event_dict) for event_dict in dict["rate_limit_event_list"]]
+        result = RateLlmiterTicket(**dict)
+        return result
 
 
 class WaitingTicket:
@@ -70,6 +108,7 @@ class WaitingTicket:
         self.event = threading.Event()
 
     def wait(self):
+        self.event.clear()
         self.event.wait()
 
     def resume_request(self):
@@ -79,9 +118,12 @@ class WaitingTicket:
 
 class SecondTicketBucket:
     def __init__(self, second_bucket_id: int, ticket_count: int = 0, issued_ticket_count: int = 0,
-                 issued_ticket_list: [RateLlmiterTicket] = None,
-                 overflow_request_list: [RateLlmiterTicket] = None, rate_limited_request_list: [RateLlmiterTicket] = None):
+                 issued_ticket_list: [RateLlmiterTicket] = None, second_requested_ticket_count: int = 0,
+                 overflow_request_list: [RateLlmiterTicket] = None,
+                 rate_limited_request_list: [RateLlmiterTicket] = None,
+                 finished_ticket_list: [RateLlmiterTicket] = None):
         self.second_bucket_id = second_bucket_id
+        self.second_requested_ticket_count = second_requested_ticket_count
         self.ticket_count = ticket_count
         self.issued_ticket_count = issued_ticket_count
         self.issued_ticket_list: [RateLlmiterTicket] = issued_ticket_list if issued_ticket_list is not None else []
@@ -89,13 +131,18 @@ class SecondTicketBucket:
         self.overflow_request_list: [RateLlmiterTicket] = overflow_request_list if overflow_request_list is not None else []
         # requests that had tickets issued, but generated rate limit exceptions
         self.rate_limited_request_list: [RateLlmiterTicket] = rate_limited_request_list if rate_limited_request_list is not None else []
+        self.finished_ticket_list: [RateLlmiterTicket] = finished_ticket_list if finished_ticket_list is not None else []
 
     def get_ticket(self, request_id: int):
         result = RateLlmiterTicket(request_id, self.second_bucket_id)
+        self.second_requested_ticket_count += 1
         self.process_ticket_request(result)
         if result.has_issued_ticket() is False:
             self.overflow_request_list.append(result)
         return result
+
+    def finish_request(self, ticket: RateLlmiterTicket):
+        self.finished_ticket_list.append(ticket)
 
     def process_ticket_request(self, ticket):
         self.issue_ticket(ticket)
@@ -145,26 +192,46 @@ class SecondTicketBucket:
     def get_issued_ticket_count(self):
         return self.issued_ticket_count
 
+    def to_dict(self):
+        result = copy.deepcopy(vars(self))
+        result["issued_ticket_list"] = [ticket.to_dict() for ticket in self.issued_ticket_list]
+        result["overflow_request_list"] = [ticket.to_dict() for ticket in self.overflow_request_list]
+        result["rate_limited_request_list"] = [ticket.to_dict() for ticket in self.rate_limited_request_list]
+        result["finished_ticket_list"] = [ticket.to_dict() for ticket in self.finished_ticket_list]
+        return result
+
+    @staticmethod
+    def from_dict(dict):
+        dict["issued_ticket_list"] = [RateLlmiterTicket.from_dict(ticket_dict) for ticket_dict in dict["issued_ticket_list"]]
+        dict["overflow_request_list"] = [RateLlmiterTicket.from_dict(ticket_dict) for ticket_dict in dict["overflow_request_list"]]
+        dict["rate_limited_request_list"] = [RateLlmiterTicket.from_dict(ticket_dict) for ticket_dict in dict["rate_limited_request_list"]]
+        dict["finished_ticket_list"] = [RateLlmiterTicket.from_dict(ticket_dict) for ticket_dict in dict["finished_ticket_list"]]
+        result = SecondTicketBucket(**dict)
+        return result
+
 
 class MinuteTicketBucket:
-    def __init__(self, start_time_in_seconds, iso_date_string, max_tickets_per_second, start_ramp_ticket_count,
-                first_bucket_ticket_count, ramp_ticket_count_delta,
-                 second_bucket_list: [SecondTicketBucket] = None):
+    def __init__(self, rate_limiter_name, start_time_in_seconds, iso_date_string, max_tickets_per_second, start_ramp_ticket_count,
+                ramp_ticket_count_delta, minute_requested_ticket_count=0, minute_finished_request_count=0,
+                 second_bucket_list: [SecondTicketBucket] = None, current_second_bucket_index=0):
+        self.rate_limiter_name = rate_limiter_name
         self.iso_date_string = iso_date_string
         self.start_time_in_seconds = start_time_in_seconds
         self.max_tickets_per_second = max_tickets_per_second
         self.start_ramp_ticket_count = start_ramp_ticket_count
         self.ramp_ticket_count_delta = ramp_ticket_count_delta
-        if second_bucket_list is None:
-            self.second_bucket_list = []
-            next_start_time = start_time_in_seconds
-            for index in range(60):
-                self.second_bucket_list.append(SecondTicketBucket(next_start_time))
-                next_start_time += 1
-            self.second_bucket_list[0].ticket_count = first_bucket_ticket_count
-        else:
-            self.second_bucket_list = second_bucket_list
-        self.current_second_bucket_index = 0
+        self.minute_requested_ticket_count = minute_requested_ticket_count
+        self.minute_finished_request_count = minute_finished_request_count
+        self.current_second_bucket_index = current_second_bucket_index
+        self.second_bucket_list = second_bucket_list
+
+    def init_second_bucket_list(self, first_bucket_ticket_count):
+        self.second_bucket_list = []
+        next_start_time = self.start_time_in_seconds
+        for index in range(60):
+            self.second_bucket_list.append(SecondTicketBucket(next_start_time))
+            next_start_time += 1
+        self.second_bucket_list[0].ticket_count = first_bucket_ticket_count
 
     def get_last_bucket_ticket_used_count(self):
         result = self.second_bucket_list[self.current_second_bucket_index].get_issued_ticket_count()
@@ -172,7 +239,12 @@ class MinuteTicketBucket:
 
     def get_ticket(self, request_id) -> RateLlmiterTicket:
         result = self.second_bucket_list[self.current_second_bucket_index].get_ticket(request_id)
+        self.minute_requested_ticket_count += 1
         return result
+
+    def finish_request(self, ticket: RateLlmiterTicket):
+        self.second_bucket_list[self.current_second_bucket_index].finish_request(ticket)
+        self.minute_finished_request_count += 1
 
     def add_rate_limited_request(self, ticket: RateLlmiterTicket):
         self.second_bucket_list[self.current_second_bucket_index].add_rate_limited_request(ticket)
@@ -202,46 +274,22 @@ class MinuteTicketBucket:
                                                         last_used_second_bucket.rate_limited_request_list)
             return result
 
+    def to_dict(self):
+        result = copy.deepcopy(vars(self))
+        result["second_bucket_list"] = [bucket.to_dict() for bucket in self.second_bucket_list]
+        return result
 
-class RateLlmiterMonitor:
-    _instance = None
-
-    def __init__(self):
-        self.rate_limiter_list = []
-        self.second_bucket_index = 0
-        self.start_time_in_seconds = int(time.time())
-        self.start_iso_date_string = datetime.datetime.fromtimestamp(self.start_time_in_seconds).isoformat()
-        self.timer = threading.Timer(interval=1, function=self.add_tickets)
-        self.timer.start()
-
-    def add_rate_limiter(self, rate_limiter):
-        rate_limiter.refresh_minute_bucket(self.start_time_in_seconds, self.start_iso_date_string)
-        self.rate_limiter_list.append(rate_limiter)
-
-    def add_tickets(self):
-        self.second_bucket_index = self.second_bucket_index % 60
-        time_in_seconds = int(time.time())
-        iso_date_string = datetime.datetime.fromtimestamp(time_in_seconds).isoformat()
-        buckets_to_log = []
-        for rate_limiter in self.rate_limiter_list:
-            if self.second_bucket_index == 0:
-                last_bucket = rate_limiter.refresh_minute_bucket(time_in_seconds, iso_date_string)
-                if last_bucket is not None:
-                    buckets_to_log.append(last_bucket)
-            else:
-                rate_limiter.release_tickets()
-        self.second_bucket_index += 1
-        self.timer = threading.Timer(interval=1, function=self.add_tickets)
-        try:
-            self.timer.start()
-        except RuntimeError as re:
-            pass  # not great...but this happens as we are exiting the program
+    def to_json(self):
+        result = self.to_dict()
+        return json.dumps(result)
 
     @staticmethod
-    def get_instance():
-        if RateLlmiterMonitor._instance is None:
-            RateLlmiterMonitor._instance = RateLlmiterMonitor()
-        return RateLlmiterMonitor._instance
+    def from_dict(dict):
+        dict["second_bucket_list"] = [SecondTicketBucket.from_dict(bucket_dict) for bucket_dict in dict["second_bucket_list"]]
+        result = MinuteTicketBucket(**dict)
+        return result
+
+
 
 
 # This class is used to organize the data that needs to be locked before access
@@ -257,10 +305,14 @@ class BucketRateLimiterLock:
 
 
 class BucketRateLimiter:
-    def __init__(self, request_per_minute, tokens_per_minute, rate_limited_service: RateLimitedService = None):
+    def __init__(self, request_per_minute, tokens_per_minute, rate_limited_service_name:str=None, rate_limited_service: RateLimitedService = None):
         self.request_per_minute = request_per_minute
         self.tokens_per_minute = tokens_per_minute
         self.rate_limited_service = rate_limited_service
+        # can not just ask service for name because some services use one rate limiter for many models
+        self.rate_limited_service_name = rate_limited_service_name
+        if rate_limited_service is not None and rate_limited_service_name is None:
+            self.rate_limited_service_name = rate_limited_service.get_service_name()
         if request_per_minute < 60: # this isn't optimal, but don't really care about this use case
             self.start_ramp_ticket_count = 1
             self.max_tickets_per_second = 1
@@ -268,13 +320,20 @@ class BucketRateLimiter:
             self.max_tickets_per_second = int(request_per_minute / 60)
             self.start_ramp_ticket_count = max(int((request_per_minute / 60) * 0.25), 1)
             self.ramp_ticket_count_delta = max(int((request_per_minute / 60) * 0.10), 1)
-            print(f"max_tickets_per_second: {self.max_tickets_per_second}, start_ramp_ticket_count: {self.start_ramp_ticket_count}, ramp_ticket_count_delta: {self.ramp_ticket_count_delta}")
         self.thread_safe_data = BucketRateLimiterLock()
         RateLlmiterMonitor.get_instance().add_rate_limiter(self)
 
     def set_rate_limited_service(self, rate_limited_service: RateLimitedService):
-        if rate_limited_service is not None:  # only set once for APIs that use one rate limiter for many models
+        if self.rate_limited_service is None:  # only set once for APIs that use one rate limiter for many models
             self.rate_limited_service = rate_limited_service
+            if self.rate_limited_service_name is None:
+                self.rate_limited_service_name = self.rate_limited_service.get_service_name()
+
+    def get_rate_limited_service_name(self):
+        return self.rate_limited_service_name
+
+    def get_current_minute_bucket(self):
+        return self.thread_safe_data.current_minute_bucket
 
     def wait(self, ticket):
         waiting_ticket = WaitingTicket(ticket)
@@ -299,12 +358,17 @@ class BucketRateLimiter:
             else:
                 first_bucket_ticket_count = last_minute_bucket.get_last_bucket_ticket_used_count() if last_minute_bucket is not None else self.start_ramp_ticket_count
                 first_bucket_ticket_count = max(first_bucket_ticket_count, self.start_ramp_ticket_count)
-            self.thread_safe_data.current_minute_bucket = MinuteTicketBucket(time_in_seconds, iso_date_string, self.max_tickets_per_second,
-                                                            self.start_ramp_ticket_count, first_bucket_ticket_count,
-                                                            self.ramp_ticket_count_delta)
+            self.thread_safe_data.current_minute_bucket = MinuteTicketBucket(self.rate_limited_service_name, time_in_seconds, iso_date_string, self.max_tickets_per_second,
+                                                            self.start_ramp_ticket_count, self.ramp_ticket_count_delta)
+            self.thread_safe_data.current_minute_bucket.init_second_bucket_list(first_bucket_ticket_count)
             released_ticket_list = self.thread_safe_data.current_minute_bucket.transfer_tickets(last_minute_bucket)
         for ticket in released_ticket_list:
             self.resume_request(ticket)
+        # kludge -- the first minute bucket can be created before the name is set because some rate limiters are created
+        # before they are associated with a service.  Would fix by making it so models create their own rate limiter if
+        # they one is not passed in
+        if last_minute_bucket is not None and last_minute_bucket.rate_limiter_name is None:
+            last_minute_bucket.rate_limiter_name = self.rate_limited_service_name
         return last_minute_bucket
 
     def release_tickets(self):
@@ -324,7 +388,6 @@ class BucketRateLimiter:
             ticket = self.thread_safe_data.current_minute_bucket.get_ticket(request_id)
         if ticket.has_issued_ticket() is False:
             ticket = self.wait(ticket)
-        print(f"ticket: {ticket.request_id}")
         return ticket
 
     def wait_for_ticket_after_rate_limit_exceeded(self, ticket):
@@ -337,10 +400,12 @@ class BucketRateLimiter:
             self.start_test_if_service_resumed_timer()
         print(f"rate limited ticket: {ticket.request_id}")
         result = self.wait(ticket)
+        print(f"reissued rate limited ticket: {ticket.request_id}")
         return result
 
     def return_ticket(self, ticket):
-        pass
+        with self.thread_safe_data.lock:
+            self.thread_safe_data.current_minute_bucket.finish_request(ticket)
 
     def start_test_if_service_resumed_timer(self):
         # this isn't thread safe, but it will only be called by one thread
@@ -364,6 +429,168 @@ class BucketRateLimiter:
                 self.thread_safe_data.test_if_service_resumed_timer = None
                 self.thread_safe_data.service_test_delay = MIN_TEST_IF_SERVICE_RESUMED_INTERVAL
                 # tickets released in the next second bucket
+
+
+class RateLlmiterGraph:
+    def __init__(self, minute_bucket_list: [MinuteTicketBucket]):
+        self.minute_bucket_list = minute_bucket_list
+        self.tickets_issued_count_list = []
+        self.overflow_ticket_count_list = []
+        self.rate_exception_ticket_count_list = []
+        self.finished_request_count_list = []
+        self.max_value = 0
+        self.collect_data()
+
+    def collect_data(self):
+        for minute_bucket in self.minute_bucket_list:
+            for second_bucket in minute_bucket.second_bucket_list:
+                self.tickets_issued_count_list.append(second_bucket.issued_ticket_count)
+                self.overflow_ticket_count_list.append(len(second_bucket.overflow_request_list))
+                self.rate_exception_ticket_count_list.append(len(second_bucket.rate_limited_request_list))
+                self.finished_request_count_list.append(len(second_bucket.finished_ticket_list))
+        self.max_value = max(max(self.finished_request_count_list), max(self.tickets_issued_count_list),
+                             max(self.overflow_ticket_count_list), max(self.rate_exception_ticket_count_list))
+
+    def make_graph(self, plot_file_name, model_name):
+        plt.figure(figsize=(10, 4))
+
+        # Plot each line with a different color
+        x = range(len(self.tickets_issued_count_list))
+        plt.plot(x, self.tickets_issued_count_list, label='Tickets Issued', color='green')
+        plt.plot(x, self.overflow_ticket_count_list, label='Overflow Tickets', color='blue')
+        plt.plot(x, self.rate_exception_ticket_count_list, label='Rate Exception Tickets', color='red')
+        plt.plot(x, self.finished_request_count_list, label='Finished Request', color='purple')
+
+        # Set the title
+        plt.title(f"Request Flow for {model_name}")
+
+        # Set y-axis properties
+        plt.ylim(0, self.max_value)
+        plt.yticks(range(0, self.max_value + 1, self.max_value // 4))  # 5 ticks including 0 and max_value
+        plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: format(int(x), ',')))
+
+        # Set x-axis properties
+        plt.xlim(0, len(self.tickets_issued_count_list) - 1)
+        plt.xticks([len(self.tickets_issued_count_list) - 1], [str(len(self.tickets_issued_count_list) - 1)])
+
+        # Add legend
+        plt.legend()
+
+        # Add labels
+        plt.xlabel('Offset in Seconds')
+        plt.ylabel('Number of Requests')
+
+        # Show the plot
+        plt.tight_layout()
+        plt.savefig(plot_file_name, dpi=300)
+        plt.show()
+        plt.close()
+
+
+class RateLlmiterMonitor:
+    _instance = None
+
+    def __init__(self):
+        self.rate_limiter_list = []
+        self.second_bucket_index = 0
+        self.start_time_in_seconds = int(time.time())
+        self.start_iso_date_string = datetime.datetime.fromtimestamp(self.start_time_in_seconds).isoformat()
+        self.log_directory = None
+        self.active_rate_limiter_dict = {}
+        self.timer = None
+
+    def start(self):
+        time_in_seconds = int(time.time())
+        iso_date_string = datetime.datetime.fromtimestamp(time_in_seconds).isoformat()
+        for rate_limiter in self.rate_limiter_list:
+            rate_limiter.refresh_minute_bucket(time_in_seconds, iso_date_string)
+        self.second_bucket_index = 1
+        self.timer = threading.Timer(interval=1, function=self.add_tickets)
+        self.timer.start()
+
+    def stop(self):
+        if self.timer is not None:
+            buckets_to_log = []
+            for rate_limiter in self.rate_limiter_list:
+                buckets_to_log.append(rate_limiter.get_current_minute_bucket())
+            self.write_buckets_to_log(buckets_to_log)
+            self.timer.cancel()
+
+    def add_rate_limiter(self, rate_limiter):
+        rate_limiter.refresh_minute_bucket(self.start_time_in_seconds, self.start_iso_date_string)
+        self.rate_limiter_list.append(rate_limiter)
+
+    def set_log_directory(self, log_directory: str):
+        self.log_directory = log_directory
+        print(f"rate limiter log_directory: {self.log_directory}")
+        os.makedirs(self.log_directory, exist_ok=True)
+
+    def add_tickets(self):
+        self.second_bucket_index = self.second_bucket_index % 60
+        time_in_seconds = int(time.time())
+        iso_date_string = datetime.datetime.fromtimestamp(time_in_seconds).isoformat()
+        buckets_to_log = []
+        for rate_limiter in self.rate_limiter_list:
+            if self.second_bucket_index == 0:
+                last_bucket = rate_limiter.refresh_minute_bucket(time_in_seconds, iso_date_string)
+                if last_bucket is not None:
+                    buckets_to_log.append(last_bucket)
+            else:
+                rate_limiter.release_tickets()
+        self.second_bucket_index += 1
+        self.write_buckets_to_log(buckets_to_log)
+        self.timer = threading.Timer(interval=1, function=self.add_tickets)
+        try:
+            self.timer.start()
+        except RuntimeError as re:
+            pass  # not great...but this happens as we are exiting the program
+
+    def write_buckets_to_log(self, buckets_to_log):
+        if self.log_directory is not None and len(buckets_to_log) > 0:
+            log_file_name = os.path.join(self.log_directory, str(self.start_time_in_seconds) + ".jsonl")
+            with open(log_file_name, "a") as file:
+                for bucket in buckets_to_log:
+                    if bucket.minute_requested_ticket_count > 0 or bucket.rate_limiter_name in self.active_rate_limiter_dict:
+                        self.active_rate_limiter_dict[bucket.rate_limiter_name] = True
+                        file.write(bucket.to_json() + "\n")
+
+    def load_session_file(self, file_name, model_name):
+        if file_name is None:
+            log_directory = Path(self.log_directory)
+            log_files = log_directory.glob("*.jsonl")
+            non_empty_log_files = [file for file in log_files if file.stat().st_size > 0]
+            session_file = max(non_empty_log_files, key=lambda f: f.stat().st_mtime, default=None)
+        else:
+            session_file = os.path.join(self.log_directory, file_name)
+        bucket_list = []
+        with open(session_file, "r") as file:
+            for line in file:
+                bucket_dict = json.loads(line)
+                bucket = MinuteTicketBucket.from_dict(bucket_dict)
+                print(f"loaded bucket: {bucket.iso_date_string}")
+                bucket_list.append(bucket)
+        if model_name is not None:
+            bucket_list = [bucket for bucket in bucket_list if bucket.rate_limiter_name == model_name]
+        file_name = os.path.basename(session_file)
+        return bucket_list, file_name
+
+    def graph_model_requests(self, file_name, model_name):
+        bucket_list, file_name = self.load_session_file(file_name, model_name)
+        if len(bucket_list) == 0:
+            print("No data in file")
+            return
+        if model_name is None:
+            print("compared to all models")
+        else:
+            graph = RateLlmiterGraph(bucket_list)
+            plot_file_name = file_name.replace(".jsonl", "-" + sanitize_file_name(model_name) + ".png")
+            graph.make_graph(plot_file_name, model_name)
+
+    @staticmethod
+    def get_instance():
+        if RateLlmiterMonitor._instance is None:
+            RateLlmiterMonitor._instance = RateLlmiterMonitor()
+        return RateLlmiterMonitor._instance
 
 
 class RateLlmiter:

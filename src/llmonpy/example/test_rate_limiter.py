@@ -1,12 +1,11 @@
 import concurrent
 import traceback
 
-from llm_client import FIREWORKS_LLAMA3_1_8B, MISTRAL_7B
-from llmonpy_prompt import LLMonPyPromptRunner
-from llmonpy_step import LlmModelInfo
-from system_startup import llmonpy_start, llmonpy_stop
-from test_prompts import TestLLMonPyPrompt
-from trace_log import trace_log_service
+from llmonpy.llm_client import FIREWORKS_LLAMA3_1_8B, MISTRAL_7B, GPT4omini, GEMINI_FLASH, TOMBU_LLAMA3_1_8B
+from llmonpy.llmonpy_prompt import LLMonPyPromptRunner
+from llmonpy.llmonpy_step import LlmModelInfo
+from llmonpy.system_startup import llmonpy_start, llmonpy_stop
+from llmonpy.example.test_prompts import TestLLMonPyPrompt
 
 if __name__ == "__main__":
     llmonpy_start()
@@ -14,7 +13,7 @@ if __name__ == "__main__":
         print("Running Test Rate Limiter")
         step_list = []
         for i in range(200):
-            model_info = LlmModelInfo(MISTRAL_7B.model_name)
+            model_info = LlmModelInfo(GPT4omini.model_name)
             step = LLMonPyPromptRunner(None, TestLLMonPyPrompt("LLMonPy"), model_info)
             step_list.append(step)
         future_list = []

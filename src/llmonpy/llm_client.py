@@ -34,7 +34,7 @@ import google.generativeai as genai
 from together import Together
 
 from llmonpy.llmonpy_util import fix_common_json_encoding_errors
-from llmonpy.rate_llmiter import RateLlmiter, RateLimitedService, BucketRateLimiter
+from llmonpy.rate_llmiter import RateLlmiter, RateLimitedService, BucketRateLimiter, RateLlmiterMonitor
 from llmonpy.system_services import add_service_to_stop
 
 PROMPT_RETRIES = 5
@@ -50,11 +50,11 @@ ANTHROPIC_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAUL
 OPENAI_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 DEEPSEEK_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 GEMINI_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
-TOGETHER_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
-FIREWORKS_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=40)
-MISTRAL_RATE_LIMITER = BucketRateLimiter(360, 20000000)
-TOGETHER_RATE_LIMITER = BucketRateLimiter(600, 20000000)
-FIREWORKS_RATE_LIMITER = BucketRateLimiter(360, 20000000)
+FIREWORKS_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=20)
+TOMBU_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
+MISTRAL_RATE_LIMITER = BucketRateLimiter(360, 20000000, "MISTRAL")
+FIREWORKS_RATE_LIMITER = BucketRateLimiter(180, 20000000, "FIREWORKS")
+TOMBU_RATE_LIMITER = BucketRateLimiter(600, 20000000, "TOMBU_FIREWORKS")
 
 
 class LLMonPyNoKeyForApiException(Exception):
@@ -281,6 +281,9 @@ class LlmClient(RateLimitedService):
         LlmClient.all_client_list.append(self)
         if rate_limiter is not None:
             rate_limiter.set_rate_limited_service(self)
+
+    def get_service_name(self) -> str:
+        return self.model_name
 
     def start(self):
         # this should init API.
@@ -665,13 +668,6 @@ MISTRAL_8X22B = MistralLlmClient("open-mixtral-8x22b", 8000, MISTRAL_RATE_LIMITE
 MISTRAL_SMALL = MistralLlmClient("mistral-small", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 1.0, 3.0)
 MISTRAL_8X7B = MistralLlmClient("open-mixtral-8x7b", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 0.7, 0.7)
 MISTRAL_LARGE = MistralLlmClient("mistral-large-2407", 120000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 3.0, 9.0)
-
-#TOGETHER_LLAMA3_70B = TogetherAIModel("meta-llama/Llama-3-70b-chat-hf", 8000, TOGETHER_RATE_LIMITER,
-#                                      TOGETHER_THREAD_POOL, 0.10, 0.10)
-#TOGETHER_LLAMA3_1_7B = TogetherAIModel("meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo", 128000, TOGETHER_RATE_LIMITER,
-#                                       TOGETHER_THREAD_POOL, 0.18, 0.18)
-#TOGETHER_QWEN1_5_4B = TogetherAIModel("mistralai/Mistral-7B-Instruct-v0.3", 32000, TOGETHER_RATE_LIMITER,
-#                                     TOGETHER_THREAD_POOL, 0.10, 0.10)
 GPT3_5 = OpenAIModel('gpt-3.5-turbo-0125', 15000, BucketRateLimiter(10000, 2000000), OPENAI_THREAD_POOL, 0.5, 1.5)
 GPT4 = OpenAIModel('gpt-4-turbo-2024-04-09', 120000, BucketRateLimiter(10000, 2000000), OPENAI_THREAD_POOL, 10.0, 30.0)
 GPT4o = OpenAIModel('gpt-4o-2024-08-06', 120000, BucketRateLimiter(10000, 30000000), OPENAI_THREAD_POOL, 2.5, 10.0)
@@ -683,7 +679,7 @@ ANTHROPIC_SONNET = AnthropicModel("claude-3-5-sonnet-20240620", 180000, BucketRa
 ANTHROPIC_HAIKU = AnthropicModel("claude-3-haiku-20240307", 180000, BucketRateLimiter(4000, 400000), ANTHROPIC_THREAD_POOL,
                                  0.25, 1.25)
 # DEEPSEEK = DeepseekModel("deepseek-chat", 24000, RateLlmiter(20, MINUTE_TIME_WINDOW), DEEPSEEK_EXECUTOR)
-GEMINI_FLASH = GeminiModel("gemini-1.5-flash", 120000, BucketRateLimiter(480, 4000000), GEMINI_THREAD_POOL, 0.075, .35)
+GEMINI_FLASH = GeminiModel("gemini-1.5-flash", 120000, BucketRateLimiter(600, 4000000), GEMINI_THREAD_POOL, 0.075, .35)
 GEMINI_PRO = GeminiModel("gemini-1.5-pro", 120000, BucketRateLimiter(360, 4000000), GEMINI_THREAD_POOL, 3.5, 7.0)
 FIREWORKS_LLAMA3_1_8B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-8b-instruct", 120000,
                                          FIREWORKS_RATE_LIMITER, FIREWORKS_THREAD_POOL, 0.20, 0.20)
@@ -697,11 +693,16 @@ FIREWORKS_MYTHOMAXL2_13B = FireworksAIModel("accounts/fireworks/models/mythomax-
                                             FIREWORKS_THREAD_POOL, 0.20, 0.20)
 FIREWORKS_QWEN2_72B = FireworksAIModel("accounts/fireworks/models/qwen2-72b-instruct", 32000, FIREWORKS_RATE_LIMITER,
                                        FIREWORKS_THREAD_POOL, 0.90, 0.90)
+TOMBU_LLAMA3_1_8B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-8b-instruct#accounts/tombu-8c8576/deployments/a5c6b8b7", 120000,
+                                         TOMBU_RATE_LIMITER, TOMBU_THREAD_POOL, 0.20, 0.20)
+
 
 ACTIVE_LLM_CLIENT_DICT = {}
 
 
-def init_llm_clients():
+def init_llm_clients(data_directory="data"):
+    log_directory = os.path.join(data_directory, "rate_llmiter_logs")
+    RateLlmiterMonitor.get_instance().set_log_directory(log_directory)
     client_list = LlmClient.get_all_clients()
     clients_with_keys = []
     missing_key_map = {}
@@ -718,7 +719,13 @@ def init_llm_clients():
     status_service = LLMClientStatusService()
     status_service.start()
     add_service_to_stop(status_service)
+    RateLlmiterMonitor.get_instance().start()
+    add_service_to_stop(RateLlmiterMonitor.get_instance())
     return clients_with_keys
+
+
+def get_rate_limiter_monitor() -> RateLlmiterMonitor:
+    return RateLlmiterMonitor.get_instance()
 
 
 def stop_llm_clients():

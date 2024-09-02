@@ -53,7 +53,7 @@ class LLMonPyConfig:
 def init_llmonpy():
     config = LLMonPyConfig()
     add_service_to_stop(config)
-    init_llm_clients()
+    init_llm_clients(data_directory=config.data_directory)
     if os.path.isdir(config.data_directory) is False:
         os.makedirs(config.data_directory)
 
