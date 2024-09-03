@@ -301,14 +301,13 @@ class AdaptiveICLCycle(LLMonPypeline):
                                            self.judgement_prompt, self.judgement_model_info_list).create_step(recorder)
             recorder.set_step_examples(self.generation_prompt_name, self.get_example_output_list())
             tournament.record_step()
-            if i  < self.max_cycles - 1:
-                result_list = tournament.get_step_output().ordered_response_list
-                new_champion = self.update_example_list(result_list, recorder)
-                if new_champion is False:
-                    recorder.log_message("cycle done " + str(i) + " champion: " + str(self.example_list[0]))
-                    break
-                else:
-                    recorder.log_message("cycle " + str(i) + " champion: " + str(self.example_list[0]))
+            result_list = tournament.get_step_output().ordered_response_list
+            new_champion = self.update_example_list(result_list, recorder)
+            if new_champion is False:
+                recorder.log_message("cycle done " + str(i) + " champion: " + str(self.example_list[0]))
+                break
+            else:
+                recorder.log_message("cycle " + str(i) + " champion: " + str(self.example_list[0]))
         result = OrderedStepOutputList(self.example_list)
         return result
 

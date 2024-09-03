@@ -1,8 +1,10 @@
 import argparse
 import json
+import traceback
 
 from llmonpy.llm_client import get_active_llm_clients, MISTRAL_7B, GPT4omini, FIREWORKS_LLAMA3_1_8B, \
-    FIREWORKS_MYTHOMAXL2_13B, FIREWORKS_GEMMA2_9B, FIREWORKS_LLAMA3_1_405B, FIREWORKS_LLAMA3_1_70B, GPT4o, GPT3_5
+    FIREWORKS_MYTHOMAXL2_13B, FIREWORKS_GEMMA2_9B, FIREWORKS_LLAMA3_1_405B, FIREWORKS_LLAMA3_1_70B, GPT4o, GPT3_5, \
+    get_rate_limiter_monitor
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
 from llmonpy.llmonpy_execute import run_step
 from llmonpy.llmonpy_prompt import LLMonPyPromptRunner
@@ -12,13 +14,17 @@ from llmonpy.example.test_tourney import GenerateNamePypeline
 from llmonpy.llmonpy_step import LlmModelInfo, make_model_list, ModelTemp
 from llmonpy.example.test_gar import GenerateNameGar
 from llmonpy.trace_log import trace_log_service
+from llmonpy.rate_llmiter import RateLlmiterMonitor
 
 
 def llmonpy_cli():
     parser = argparse.ArgumentParser(description='Run specific functions from the command line.')
-    parser.add_argument('function', choices=['models', 'prompt', 'tourney', 'cycle', 'gar', 'qbawa_list', 'qbawa'],
+    parser.add_argument('function', choices=['models', 'prompt', 'tourney', 'cycle', 'gar', 'qbawa_list',
+                                             'qbawa', 'llmiter'],
                         help='The function to run.')
     parser.add_argument('-name', type=str, help='name argument')
+    parser.add_argument('-file', type=str, help='file argument')
+    parser.add_argument('-lines', type=str, help='ex: iroef, i=issued, r=requests, o=overflow, e=exceptions, f=finished')
     args = parser.parse_args()
     llmonpy_start()
     model_list = [FIREWORKS_LLAMA3_1_8B, FIREWORKS_MYTHOMAXL2_13B, GPT4o, GPT3_5, GPT4omini]
@@ -70,6 +76,16 @@ def llmonpy_cli():
                 tourney_result_list = [tourney_result.to_dict() for tourney_result in tourney_result_list]
                 json_str = json.dumps(tourney_result_list, indent=4)
                 print(json_str)
+        elif args.function == 'llmiter':
+            file_name = args.file
+            model_name = args.name
+            lines = args.lines
+            get_rate_limiter_monitor().graph_model_requests(file_name, model_name, lines)
+            print("running llmiter test ")
+    except Exception as e:
+        stack_trace = traceback.format_exc()
+        print(stack_trace)
+        print(str(e))
     finally:
         llmonpy_stop()
         exit(0)

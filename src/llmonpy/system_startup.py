@@ -14,10 +14,10 @@
 #   OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from llmonpy.system_services import stop_services
+from llmonpy.config import init_llmonpy
 
 
 def llmonpy_start():
-    from llmonpy.config import init_llmonpy
     from llmonpy.trace_log import init_trace_log_service
     init_llmonpy()
     init_trace_log_service()

@@ -31,36 +31,44 @@ from mistralai import Mistral
 from nothingpy import Nothing
 from openai import OpenAI
 import google.generativeai as genai
+from tenacity import retry, wait_exponential
 from together import Together
 
 from llmonpy.llmonpy_util import fix_common_json_encoding_errors
-from llmonpy.rate_llmiter import RateLlmiter
+from llmonpy.rate_llmiter import RateLlmiter, RateLimitedService, BucketRateLimiter, RateLlmiterMonitor
 from llmonpy.system_services import add_service_to_stop
 
 PROMPT_RETRIES = 5
 RATE_LIMIT_RETRIES = 20
 BASE_RETRY_DELAY = 30  # seconds
-DEFAULT_THREAD_POOL_SIZE = 50
+DEFAULT_THREAD_POOL_SIZE = 200
 TOKEN_UNIT_FOR_COST = 1000000
 
 LLMONPY_API_PREFIX = "LLMONPY_"
 
-MISTRAL_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=20)
+MISTRAL_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 ANTHROPIC_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 OPENAI_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 DEEPSEEK_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 GEMINI_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
-TOGETHER_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
-FIREWORKS_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=20)
-MISTRAL_RATE_LIMITER = RateLlmiter(200, 20000000)
-TOGETHER_RATE_LIMITER = RateLlmiter(600, 20000000)
-FIREWORKS_RATE_LIMITER = RateLlmiter(100, 20000000)
+FIREWORKS_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
+TOMBU_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
+MISTRAL_RATE_LIMITER = BucketRateLimiter(180, 20000000, "MISTRAL")
+FIREWORKS_RATE_LIMITER = BucketRateLimiter(180, 20000000, "FIREWORKS")
+TOMBU_RATE_LIMITER = BucketRateLimiter(1200, 20000000, "TOMBU_FIREWORKS")
 
 
 class LLMonPyNoKeyForApiException(Exception):
     def __init__(self, api_key_name):
         super().__init__("No API key found for model " + api_key_name)
         self.api_key_name = api_key_name
+
+
+class TenacityRateLimitError(Exception):
+    def __init__(self):
+        super().__init__("Rate limit exceeded")
+        print("Rate limit exceeded")
+        self.status_code = 429
 
 
 def get_api_key(api_key_name, exit_on_error=True):
@@ -218,6 +226,13 @@ class LLMClientStatusService:
         completed = current_status.completed_prompt_count
         slowest = current_status.slowest_prompt
         print(f"\n{current_status.client_name} in_flight:{in_flight} waiting_for_ticket:{waiting} completed:{completed} rate_exceptions:{rate_exceptions} slowest:{slowest:.3f}\n")
+        for client_status in all_status_list[1:]:
+            in_flight = client_status.in_flight_count
+            waiting = client_status.waiting_for_ticket
+            rate_exceptions = client_status.rate_limit_count
+            completed = client_status.completed_prompt_count
+            slowest = client_status.slowest_prompt
+            print(f"{client_status.client_name} in_flight:{in_flight} waiting_for_ticket:{waiting} completed:{completed} rate_exceptions:{rate_exceptions} slowest:{slowest:.3f}")
         self.start_timer()
 
     @staticmethod
@@ -260,7 +275,7 @@ class LlmClientResponse:
 """
 
 
-class LlmClient:
+class LlmClient(RateLimitedService):
     all_client_list = []
 
     def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
@@ -272,6 +287,11 @@ class LlmClient:
         self.price_per_input_token = price_per_input_token
         self.price_per_output_token = price_per_output_token
         LlmClient.all_client_list.append(self)
+        if rate_limiter is not None:
+            rate_limiter.set_rate_limited_service(self)
+
+    def get_service_name(self) -> str:
+        return self.model_name
 
     def start(self):
         # this should init API.
@@ -280,11 +300,58 @@ class LlmClient:
     def get_model_name(self):
         return self.model_name
 
+    def test_if_blocked(self):
+        result = True
+        print("Testing if blocked")
+        try:
+            self.start() # this should init API.
+            response = self.do_prompt("Hello? Respond with 'World'","You are a helpful assistant", False,
+                                      temp=0.0, max_output=10)
+            result = response.response_text is None
+            print("Blocked test response: " + str(result))
+        except Exception as e:
+            print("Blocked test exception: " + str(e))
+            result = True
+        return result
+
     def prompt(self, prompt_id, prompt_text, system_prompt=Nothing, json_output=False, temp=0.0,
                max_output=None) -> LlmClientResponse:
         result = None
         llm_client_prompt_status_service().start_prompt(prompt_id, self.model_name)
-        self.rate_limiter.get_ticket()
+        ticket = self.rate_limiter.get_ticket()
+        llm_client_prompt_status_service().got_ticket(prompt_id, self.model_name)
+        for attempt in range(RATE_LIMIT_RETRIES):
+            try:
+                result = self.do_prompt(prompt_text, system_prompt, json_output, temp, max_output)
+                if result is None or len(result.response_text) == 0:
+                    # some llms return empty result when the rate limit is exceeded, throw exception to retry
+                    raise LlmClientRateLimitException()
+                else:
+                    self.rate_limiter.return_ticket(ticket)
+                    llm_client_prompt_status_service().prompt_done(prompt_id, self.model_name)
+                    break
+            except RateLimitError as re:
+                ticket = self.wait_for_ticket_after_rate_limit_exceeded(prompt_id, ticket)
+                continue
+            except Exception as e:
+                if getattr(e, "status_code", None) is not None and e.status_code == 429:
+                    ticket = self.wait_for_ticket_after_rate_limit_exceeded(prompt_id, ticket)
+                    continue
+                elif getattr(e, "code", None) is not None and e.code == 429:
+                    ticket = self.wait_for_ticket_after_rate_limit_exceeded(prompt_id, ticket)
+                    continue
+                else:
+                    self.rate_limiter.return_ticket(ticket)
+                    llm_client_prompt_status_service().prompt_failed(prompt_id, self.model_name)
+                    raise e
+        return result
+
+    '''
+    @retry(wait=wait_exponential(multiplier=1, min=5, max=60))
+    def tenacity_prompt(self, prompt_id, prompt_text, system_prompt=Nothing, json_output=False, temp=0.0,
+               max_output=None) -> LlmClientResponse:
+        result = None
+        llm_client_prompt_status_service().start_prompt(prompt_id, self.model_name)
         llm_client_prompt_status_service().got_ticket(prompt_id, self.model_name)
         for attempt in range(RATE_LIMIT_RETRIES):
             try:
@@ -296,25 +363,26 @@ class LlmClient:
                     llm_client_prompt_status_service().prompt_done(prompt_id, self.model_name)
                     break
             except RateLimitError as re:
-                self.wait_for_ticket_after_rate_limit_exceeded(prompt_id)
-                continue
+                llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
+                raise TenacityRateLimitError()
             except Exception as e:
                 if getattr(e, "status_code", None) is not None and e.status_code == 429:
-                    self.wait_for_ticket_after_rate_limit_exceeded(prompt_id)
-                    continue
+                    llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
+                    raise TenacityRateLimitError()
                 elif getattr(e, "code", None) is not None and e.code == 429:
-                    self.wait_for_ticket_after_rate_limit_exceeded(prompt_id)
-                    continue
+                    llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
+                    raise TenacityRateLimitError()
                 else:
                     llm_client_prompt_status_service().prompt_failed(prompt_id, self.model_name)
                     raise e
         return result
+    '''
 
-    def wait_for_ticket_after_rate_limit_exceeded(self, prompt_id):
-        print("rate limit exceeded " + self.model_name)
+    def wait_for_ticket_after_rate_limit_exceeded(self, prompt_id, ticket):
         llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
-        self.rate_limiter.wait_for_ticket_after_rate_limit_exceeded()
+        ticket = self.rate_limiter.wait_for_ticket_after_rate_limit_exceeded(ticket)
         llm_client_prompt_status_service().got_ticket(prompt_id, self.model_name)
+        return ticket
 
     def do_prompt(self, prompt_text, system_prompt=None, json_output=False, max_output=None, temp=0.0):
         raise Exception("Not implemented")
@@ -640,26 +708,19 @@ MISTRAL_8X22B = MistralLlmClient("open-mixtral-8x22b", 8000, MISTRAL_RATE_LIMITE
 MISTRAL_SMALL = MistralLlmClient("mistral-small", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 1.0, 3.0)
 MISTRAL_8X7B = MistralLlmClient("open-mixtral-8x7b", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 0.7, 0.7)
 MISTRAL_LARGE = MistralLlmClient("mistral-large-2407", 120000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 3.0, 9.0)
-
-#TOGETHER_LLAMA3_70B = TogetherAIModel("meta-llama/Llama-3-70b-chat-hf", 8000, TOGETHER_RATE_LIMITER,
-#                                      TOGETHER_THREAD_POOL, 0.10, 0.10)
-#TOGETHER_LLAMA3_1_7B = TogetherAIModel("meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo", 128000, TOGETHER_RATE_LIMITER,
-#                                       TOGETHER_THREAD_POOL, 0.18, 0.18)
-#TOGETHER_QWEN1_5_4B = TogetherAIModel("mistralai/Mistral-7B-Instruct-v0.3", 32000, TOGETHER_RATE_LIMITER,
-#                                     TOGETHER_THREAD_POOL, 0.10, 0.10)
-GPT3_5 = OpenAIModel('gpt-3.5-turbo-0125', 15000, RateLlmiter(10000, 2000000), OPENAI_THREAD_POOL, 0.5, 1.5)
-GPT4 = OpenAIModel('gpt-4-turbo-2024-04-09', 120000, RateLlmiter(10000, 2000000), OPENAI_THREAD_POOL, 10.0, 30.0)
-GPT4o = OpenAIModel('gpt-4o-2024-08-06', 120000, RateLlmiter(10000, 30000000), OPENAI_THREAD_POOL, 2.5, 15.0)
-GPT4omini = OpenAIModel('gpt-4o-mini', 120000, RateLlmiter(10000, 15000000), OPENAI_THREAD_POOL, 0.15, 0.60)
-ANTHROPIC_OPUS = AnthropicModel("claude-3-opus-20240229", 180000, RateLlmiter(4000, 400000), ANTHROPIC_THREAD_POOL,
+GPT3_5 = OpenAIModel('gpt-3.5-turbo-0125', 15000, BucketRateLimiter(10000, 2000000), OPENAI_THREAD_POOL, 0.5, 1.5)
+GPT4 = OpenAIModel('gpt-4-turbo-2024-04-09', 120000, BucketRateLimiter(10000, 2000000), OPENAI_THREAD_POOL, 10.0, 30.0)
+GPT4o = OpenAIModel('gpt-4o-2024-08-06', 120000, BucketRateLimiter(10000, 30000000), OPENAI_THREAD_POOL, 2.5, 10.0)
+GPT4omini = OpenAIModel('gpt-4o-mini', 120000, BucketRateLimiter(10000, 15000000), OPENAI_THREAD_POOL, 0.15, 0.60)
+ANTHROPIC_OPUS = AnthropicModel("claude-3-opus-20240229", 180000, BucketRateLimiter(4000, 400000), ANTHROPIC_THREAD_POOL,
                                 15.0, 75.0)
-ANTHROPIC_SONNET = AnthropicModel("claude-3-5-sonnet-20240620", 180000, RateLlmiter(4000, 400000),
+ANTHROPIC_SONNET = AnthropicModel("claude-3-5-sonnet-20240620", 180000, BucketRateLimiter(4000, 400000),
                                   ANTHROPIC_THREAD_POOL, 3.0, 15.0)
-ANTHROPIC_HAIKU = AnthropicModel("claude-3-haiku-20240307", 180000, RateLlmiter(4000, 400000), ANTHROPIC_THREAD_POOL,
+ANTHROPIC_HAIKU = AnthropicModel("claude-3-haiku-20240307", 180000, BucketRateLimiter(4000, 400000), ANTHROPIC_THREAD_POOL,
                                  0.25, 1.25)
 # DEEPSEEK = DeepseekModel("deepseek-chat", 24000, RateLlmiter(20, MINUTE_TIME_WINDOW), DEEPSEEK_EXECUTOR)
-GEMINI_FLASH = GeminiModel("gemini-1.5-flash", 120000, RateLlmiter(480, 4000000), GEMINI_THREAD_POOL, 0.075, .15)
-GEMINI_PRO = GeminiModel("gemini-1.5-pro", 120000, RateLlmiter(360, 4000000), GEMINI_THREAD_POOL, 3.5, 10.5)
+GEMINI_FLASH = GeminiModel("gemini-1.5-flash", 120000, BucketRateLimiter(600, 4000000), GEMINI_THREAD_POOL, 0.075, .35)
+GEMINI_PRO = GeminiModel("gemini-1.5-pro", 120000, BucketRateLimiter(360, 4000000), GEMINI_THREAD_POOL, 3.5, 7.0)
 FIREWORKS_LLAMA3_1_8B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-8b-instruct", 120000,
                                          FIREWORKS_RATE_LIMITER, FIREWORKS_THREAD_POOL, 0.20, 0.20)
 FIREWORKS_LLAMA3_1_405B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-405b-instruct", 120000,
@@ -672,11 +733,20 @@ FIREWORKS_MYTHOMAXL2_13B = FireworksAIModel("accounts/fireworks/models/mythomax-
                                             FIREWORKS_THREAD_POOL, 0.20, 0.20)
 FIREWORKS_QWEN2_72B = FireworksAIModel("accounts/fireworks/models/qwen2-72b-instruct", 32000, FIREWORKS_RATE_LIMITER,
                                        FIREWORKS_THREAD_POOL, 0.90, 0.90)
+TOMBU_LLAMA3_1_8B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-8b-instruct#accounts/tombu-8c8576/deployments/ffdd8605", 120000,
+                                         TOMBU_RATE_LIMITER, TOMBU_THREAD_POOL, 0.20, 0.20)
+TOMBU_DOLPHIN_QWEN2_72B= FireworksAIModel("accounts/fireworks/models/dolphin-2-9-2-qwen2-72b#accounts/tombu-8c8576/deployments/39b81ca3", 120000,
+                                         TOMBU_RATE_LIMITER, TOMBU_THREAD_POOL, 0.20, 0.20)
+TOMBU_NEMO_12B= FireworksAIModel("accounts/fireworks/models/mistral-nemo-instruct-2407#accounts/tombu-8c8576/deployments/0fdd946e", 120000,
+                                         TOMBU_RATE_LIMITER, TOMBU_THREAD_POOL, 0.20, 0.20)
+
 
 ACTIVE_LLM_CLIENT_DICT = {}
 
 
-def init_llm_clients():
+def init_llm_clients(data_directory="data"):
+    log_directory = os.path.join(data_directory, "rate_llmiter_logs")
+    RateLlmiterMonitor.get_instance().set_log_directory(log_directory)
     client_list = LlmClient.get_all_clients()
     clients_with_keys = []
     missing_key_map = {}
@@ -693,7 +763,13 @@ def init_llm_clients():
     status_service = LLMClientStatusService()
     status_service.start()
     add_service_to_stop(status_service)
+    RateLlmiterMonitor.get_instance().start()
+    add_service_to_stop(RateLlmiterMonitor.get_instance())
     return clients_with_keys
+
+
+def get_rate_limiter_monitor() -> RateLlmiterMonitor:
+    return RateLlmiterMonitor.get_instance()
 
 
 def stop_llm_clients():
@@ -734,12 +810,15 @@ if __name__ == "__main__":
     for client in ACTIVE_LLM_CLIENT_DICT.values():
         print("Testing " + client.model_name)
         try:
-            response = client.prompt(str(uuid.uuid4()), TEST_PROMPT, json_output=True)
+            response = client.test_if_blocked()
+            print(client.model_name + "blocked: " + str(response))
+            #response = client.prompt(str(uuid.uuid4()), TEST_PROMPT, json_output=True)
+            #print(str(response.response_dict) + " input cost: " + str(response.input_cost) + " output cost: " + str(
+            #    response.output_cost))
         except Exception as e:
             print("Exception: " + str(e))
             continue
-        print(str(response.response_dict) + " input cost: " + str(response.input_cost) + " output cost: " + str(
-            response.output_cost))
+
         print("Prompt completed")
     print("All tests completed")
     exit(0)

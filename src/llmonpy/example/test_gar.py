@@ -19,7 +19,7 @@ import time
 
 from llmonpy.llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, \
     ANTHROPIC_HAIKU, \
-    MISTRAL_8X22B, ANTHROPIC_OPUS, MISTRAL_SMALL, filter_clients_that_didnt_start, GPT4omini, FIREWORKS_QWEN2_72B, \
+    MISTRAL_8X22B, ANTHROPIC_OPUS, MISTRAL_SMALL, filter_clients_that_didnt_start, GPT4omini, \
     FIREWORKS_MYTHOMAXL2_13B, FIREWORKS_LLAMA3_1_8B
 from llmonpy.llmon_pypeline import LLMonPypeline
 from llmonpy.llmonpy_execute import run_step
@@ -42,8 +42,8 @@ class GenerateNameGar(LLMonPypeline):
             return result
 
     def __init__(self, generate_info_list=None, aggregate_info_list=None, judge_client_info_list=None):
-        self.generate_info_list = generate_info_list if generate_info_list is not None else make_model_list(ModelTemp([ANTHROPIC_SONNET, GEMINI_FLASH, GPT4omini, FIREWORKS_QWEN2_72B], [0.0]))
-        self.aggregate_info_list = aggregate_info_list if aggregate_info_list is not None else make_model_list(ModelTemp([GPT4omini, GEMINI_FLASH, FIREWORKS_MYTHOMAXL2_13B, ANTHROPIC_HAIKU, FIREWORKS_QWEN2_72B], [0.0, 0.5]))
+        self.generate_info_list = generate_info_list if generate_info_list is not None else make_model_list(ModelTemp([ANTHROPIC_SONNET, GEMINI_FLASH, GPT4omini, MISTRAL_SMALL], [0.0]))
+        self.aggregate_info_list = aggregate_info_list if aggregate_info_list is not None else make_model_list(ModelTemp([GPT4omini, GEMINI_FLASH, FIREWORKS_MYTHOMAXL2_13B, ANTHROPIC_HAIKU, MISTRAL_SMALL], [0.0, 0.5]))
         self.judge_client_info_list = judge_client_info_list if judge_client_info_list is not None else make_model_list(ModelTemp([FIREWORKS_LLAMA3_1_8B, GEMINI_FLASH, FIREWORKS_MYTHOMAXL2_13B, GPT4omini, ANTHROPIC_HAIKU],0.0))
 
     def get_input_dict(self, recorder: TraceLogRecorderInterface):
