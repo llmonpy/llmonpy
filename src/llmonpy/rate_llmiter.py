@@ -394,8 +394,8 @@ class BucketRateLimiter:
         return ticket
 
     def wait_for_ticket_after_rate_limit_exceeded(self, ticket):
-        self.return_ticket(ticket)
         with self.thread_safe_data.lock:
+            self.unsafe_return_ticket(ticket)
             start_service_resumed_timer = self.thread_safe_data.is_paused_by_rate_limit_exception is False
             self.thread_safe_data.is_paused_by_rate_limit_exception = True
             self.thread_safe_data.current_minute_bucket.add_rate_limited_request(ticket)
@@ -408,7 +408,10 @@ class BucketRateLimiter:
 
     def return_ticket(self, ticket):
         with self.thread_safe_data.lock:
-            self.thread_safe_data.current_minute_bucket.finish_request(ticket)
+            self.unsafe_return_ticket(ticket)
+
+    def unsafe_return_ticket(self, ticket):
+        self.thread_safe_data.current_minute_bucket.finish_request(ticket)
 
     def start_test_if_service_resumed_timer(self):
         # this isn't thread safe, but it will only be called by one thread
