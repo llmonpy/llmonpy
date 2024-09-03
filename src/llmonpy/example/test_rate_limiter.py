@@ -17,7 +17,6 @@ if __name__ == "__main__":
             step = LLMonPyPromptRunner(None, TestLLMonPyPrompt("LLMonPy"), model_info)
             step_list.append(step)
         future_list = []
-        result_dict = {}
         for step in step_list:
             future = step.get_thread_pool().submit(step.record_step)
             future_list.append(future)
@@ -29,7 +28,6 @@ if __name__ == "__main__":
             except Exception as e:
                 print(str(e))  # exception was logged in record_step
                 pass
-        result_list = list(result_dict.values())
     except Exception as e:
         stack_trace = traceback.format_exc()
         print(stack_trace)
