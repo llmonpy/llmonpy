@@ -494,7 +494,11 @@ class RateLlmiterGraph:
 
         # Set x-axis properties
         plt.xlim(0, len(self.tickets_issued_count_list) - 1)
-        plt.xticks([len(self.tickets_issued_count_list) - 1], [str(len(self.tickets_issued_count_list) - 1)])
+        #plt.xticks([len(self.tickets_issued_count_list) - 1], [str(len(self.tickets_issued_count_list) - 1)])
+        max_x = len(self.tickets_issued_count_list) - 1
+        ticks = [int(i * max_x / 4) for i in range(5)]
+        ticks[-1] = max_x  # Ensure the last tick is always the last index
+        plt.xticks(ticks, ticks)
 
         # Add legend
         plt.legend()
