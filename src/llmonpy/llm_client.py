@@ -53,8 +53,8 @@ DEEPSEEK_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT
 GEMINI_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 FIREWORKS_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 TOMBU_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
-MISTRAL_RATE_LIMITER = BucketRateLimiter(360, 20000000, "MISTRAL")
-FIREWORKS_RATE_LIMITER = BucketRateLimiter(300, 20000000, "FIREWORKS")
+MISTRAL_RATE_LIMITER = BucketRateLimiter(180, 20000000, "MISTRAL")
+FIREWORKS_RATE_LIMITER = BucketRateLimiter(180, 20000000, "FIREWORKS")
 TOMBU_RATE_LIMITER = BucketRateLimiter(1200, 20000000, "TOMBU_FIREWORKS")
 
 
@@ -346,6 +346,7 @@ class LlmClient(RateLimitedService):
                     raise e
         return result
 
+    '''
     @retry(wait=wait_exponential(multiplier=1, min=5, max=60))
     def tenacity_prompt(self, prompt_id, prompt_text, system_prompt=Nothing, json_output=False, temp=0.0,
                max_output=None) -> LlmClientResponse:
@@ -375,6 +376,7 @@ class LlmClient(RateLimitedService):
                     llm_client_prompt_status_service().prompt_failed(prompt_id, self.model_name)
                     raise e
         return result
+    '''
 
     def wait_for_ticket_after_rate_limit_exceeded(self, prompt_id, ticket):
         llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
@@ -731,7 +733,11 @@ FIREWORKS_MYTHOMAXL2_13B = FireworksAIModel("accounts/fireworks/models/mythomax-
                                             FIREWORKS_THREAD_POOL, 0.20, 0.20)
 FIREWORKS_QWEN2_72B = FireworksAIModel("accounts/fireworks/models/qwen2-72b-instruct", 32000, FIREWORKS_RATE_LIMITER,
                                        FIREWORKS_THREAD_POOL, 0.90, 0.90)
-TOMBU_LLAMA3_1_8B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-8b-instruct#accounts/tombu-8c8576/deployments/1f75b461", 120000,
+TOMBU_LLAMA3_1_8B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-8b-instruct#accounts/tombu-8c8576/deployments/ffdd8605", 120000,
+                                         TOMBU_RATE_LIMITER, TOMBU_THREAD_POOL, 0.20, 0.20)
+TOMBU_DOLPHIN_QWEN2_72B= FireworksAIModel("accounts/fireworks/models/dolphin-2-9-2-qwen2-72b#accounts/tombu-8c8576/deployments/39b81ca3", 120000,
+                                         TOMBU_RATE_LIMITER, TOMBU_THREAD_POOL, 0.20, 0.20)
+TOMBU_NEMO_12B= FireworksAIModel("accounts/fireworks/models/mistral-nemo-instruct-2407#accounts/tombu-8c8576/deployments/0fdd946e", 120000,
                                          TOMBU_RATE_LIMITER, TOMBU_THREAD_POOL, 0.20, 0.20)
 
 

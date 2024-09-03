@@ -24,7 +24,7 @@ def llmonpy_cli():
                         help='The function to run.')
     parser.add_argument('-name', type=str, help='name argument')
     parser.add_argument('-file', type=str, help='file argument')
-    parser.add_argument('-issued_tickets', action='store_true', help='only show issued tickets')
+    parser.add_argument('-lines', type=str, help='ex: iroef, i=issued, r=requests, o=overflow, e=exceptions, f=finished')
     args = parser.parse_args()
     llmonpy_start()
     model_list = [FIREWORKS_LLAMA3_1_8B, FIREWORKS_MYTHOMAXL2_13B, GPT4o, GPT3_5, GPT4omini]
@@ -79,8 +79,8 @@ def llmonpy_cli():
         elif args.function == 'llmiter':
             file_name = args.file
             model_name = args.name
-            issued_tickets_only = args.issued_tickets
-            get_rate_limiter_monitor().graph_model_requests(file_name, model_name, issued_tickets_only)
+            lines = args.lines
+            get_rate_limiter_monitor().graph_model_requests(file_name, model_name, lines)
             print("running llmiter test ")
     except Exception as e:
         stack_trace = traceback.format_exc()
