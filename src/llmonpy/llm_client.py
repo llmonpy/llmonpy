@@ -54,7 +54,7 @@ FIREWORKS_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAUL
 TOMBU_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 MISTRAL_RATE_LIMITER = BucketRateLimiter(360, 20000000, "MISTRAL")
 FIREWORKS_RATE_LIMITER = BucketRateLimiter(360, 20000000, "FIREWORKS")
-TOMBU_RATE_LIMITER = BucketRateLimiter(600, 20000000, "TOMBU_FIREWORKS")
+TOMBU_RATE_LIMITER = BucketRateLimiter(1200, 20000000, "TOMBU_FIREWORKS")
 
 
 class LLMonPyNoKeyForApiException(Exception):
@@ -693,7 +693,7 @@ FIREWORKS_MYTHOMAXL2_13B = FireworksAIModel("accounts/fireworks/models/mythomax-
                                             FIREWORKS_THREAD_POOL, 0.20, 0.20)
 FIREWORKS_QWEN2_72B = FireworksAIModel("accounts/fireworks/models/qwen2-72b-instruct", 32000, FIREWORKS_RATE_LIMITER,
                                        FIREWORKS_THREAD_POOL, 0.90, 0.90)
-TOMBU_LLAMA3_1_8B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-8b-instruct#accounts/tombu-8c8576/deployments/a5c6b8b7", 120000,
+TOMBU_LLAMA3_1_8B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-8b-instruct#accounts/tombu-8c8576/deployments/1f75b461", 120000,
                                          TOMBU_RATE_LIMITER, TOMBU_THREAD_POOL, 0.20, 0.20)
 
 

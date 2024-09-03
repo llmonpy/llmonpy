@@ -13,7 +13,7 @@ if __name__ == "__main__":
         print("Running Test Rate Limiter")
         step_list = []
         for i in range(200):
-            model_info = LlmModelInfo(GPT4omini.model_name)
+            model_info = LlmModelInfo(TOMBU_LLAMA3_1_8B.model_name)
             step = LLMonPyPromptRunner(None, TestLLMonPyPrompt("LLMonPy"), model_info)
             step_list.append(step)
         future_list = []
