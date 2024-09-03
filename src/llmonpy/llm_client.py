@@ -31,6 +31,7 @@ from mistralai import Mistral
 from nothingpy import Nothing
 from openai import OpenAI
 import google.generativeai as genai
+from tenacity import retry, wait_exponential
 from together import Together
 
 from llmonpy.llmonpy_util import fix_common_json_encoding_errors
@@ -53,7 +54,7 @@ GEMINI_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_T
 FIREWORKS_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 TOMBU_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 MISTRAL_RATE_LIMITER = BucketRateLimiter(360, 20000000, "MISTRAL")
-FIREWORKS_RATE_LIMITER = BucketRateLimiter(360, 20000000, "FIREWORKS")
+FIREWORKS_RATE_LIMITER = BucketRateLimiter(300, 20000000, "FIREWORKS")
 TOMBU_RATE_LIMITER = BucketRateLimiter(1200, 20000000, "TOMBU_FIREWORKS")
 
 
@@ -61,6 +62,13 @@ class LLMonPyNoKeyForApiException(Exception):
     def __init__(self, api_key_name):
         super().__init__("No API key found for model " + api_key_name)
         self.api_key_name = api_key_name
+
+
+class TenacityRateLimitError(Exception):
+    def __init__(self):
+        super().__init__("Rate limit exceeded")
+        print("Rate limit exceeded")
+        self.status_code = 429
 
 
 def get_api_key(api_key_name, exit_on_error=True):
@@ -334,6 +342,36 @@ class LlmClient(RateLimitedService):
                     continue
                 else:
                     self.rate_limiter.return_ticket(ticket)
+                    llm_client_prompt_status_service().prompt_failed(prompt_id, self.model_name)
+                    raise e
+        return result
+
+    @retry(wait=wait_exponential(multiplier=1, min=5, max=60))
+    def tenacity_prompt(self, prompt_id, prompt_text, system_prompt=Nothing, json_output=False, temp=0.0,
+               max_output=None) -> LlmClientResponse:
+        result = None
+        llm_client_prompt_status_service().start_prompt(prompt_id, self.model_name)
+        llm_client_prompt_status_service().got_ticket(prompt_id, self.model_name)
+        for attempt in range(RATE_LIMIT_RETRIES):
+            try:
+                result = self.do_prompt(prompt_text, system_prompt, json_output, temp, max_output)
+                if result is None or len(result.response_text) == 0:
+                    # some llms return empty result when the rate limit is exceeded, throw exception to retry
+                    raise LlmClientRateLimitException()
+                else:
+                    llm_client_prompt_status_service().prompt_done(prompt_id, self.model_name)
+                    break
+            except RateLimitError as re:
+                llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
+                raise TenacityRateLimitError()
+            except Exception as e:
+                if getattr(e, "status_code", None) is not None and e.status_code == 429:
+                    llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
+                    raise TenacityRateLimitError()
+                elif getattr(e, "code", None) is not None and e.code == 429:
+                    llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
+                    raise TenacityRateLimitError()
+                else:
                     llm_client_prompt_status_service().prompt_failed(prompt_id, self.model_name)
                     raise e
         return result

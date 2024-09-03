@@ -41,9 +41,9 @@ class GenerateNameCycle(LLMonPypeline):
             return result
 
     def __init__(self, first_round_info_list=None, aggregate_info_list=None, judge_client_info_list=None):
-        self.first_round_info_list = first_round_info_list if first_round_info_list is not None else make_model_list(ModelTemp([ANTHROPIC_SONNET, GEMINI_FLASH, GPT4omini, MISTRAL_SMALL], [0.0, 0.75]))
-        self.aggregate_info_list = aggregate_info_list if aggregate_info_list is not None else make_model_list(ModelTemp([GPT4omini, GEMINI_FLASH, FIREWORKS_MYTHOMAXL2_13B, ANTHROPIC_HAIKU, MISTRAL_SMALL], [0.0, 0.75]))
-        self.judge_client_info_list = judge_client_info_list if judge_client_info_list is not None else make_model_list(ModelTemp([FIREWORKS_LLAMA3_1_8B, GEMINI_FLASH, TOMBU_LLAMA3_1_8B, GPT4omini, ANTHROPIC_HAIKU],0.0))
+        self.first_round_info_list = first_round_info_list if first_round_info_list is not None else make_model_list(ModelTemp([ANTHROPIC_SONNET, GEMINI_FLASH, GPT4omini, MISTRAL_SMALL], [0.0, 0.25, 0.50, 0.75]))
+        self.aggregate_info_list = aggregate_info_list if aggregate_info_list is not None else make_model_list(ModelTemp([GPT4omini, GEMINI_FLASH, FIREWORKS_MYTHOMAXL2_13B, ANTHROPIC_HAIKU, MISTRAL_SMALL], [0.0, 0.25, 0.50, 0.75]))
+        self.judge_client_info_list = judge_client_info_list if judge_client_info_list is not None else make_model_list(ModelTemp([FIREWORKS_LLAMA3_1_8B, GEMINI_FLASH, MISTRAL_7B, GPT4omini, ANTHROPIC_HAIKU],0.0))
 
     def get_input_dict(self, recorder: TraceLogRecorderInterface):
         return {}
