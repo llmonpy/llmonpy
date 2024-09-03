@@ -40,20 +40,20 @@ from llmonpy.system_services import add_service_to_stop
 PROMPT_RETRIES = 5
 RATE_LIMIT_RETRIES = 20
 BASE_RETRY_DELAY = 30  # seconds
-DEFAULT_THREAD_POOL_SIZE = 250
+DEFAULT_THREAD_POOL_SIZE = 200
 TOKEN_UNIT_FOR_COST = 1000000
 
 LLMONPY_API_PREFIX = "LLMONPY_"
 
-MISTRAL_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=20)
+MISTRAL_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 ANTHROPIC_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 OPENAI_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 DEEPSEEK_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 GEMINI_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
-FIREWORKS_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=20)
+FIREWORKS_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 TOMBU_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 MISTRAL_RATE_LIMITER = BucketRateLimiter(360, 20000000, "MISTRAL")
-FIREWORKS_RATE_LIMITER = BucketRateLimiter(180, 20000000, "FIREWORKS")
+FIREWORKS_RATE_LIMITER = BucketRateLimiter(360, 20000000, "FIREWORKS")
 TOMBU_RATE_LIMITER = BucketRateLimiter(600, 20000000, "TOMBU_FIREWORKS")
 
 

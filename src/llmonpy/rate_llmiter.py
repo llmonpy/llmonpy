@@ -439,6 +439,7 @@ class BucketRateLimiter:
 class RateLlmiterGraph:
     def __init__(self, minute_bucket_list: [MinuteTicketBucket]):
         self.minute_bucket_list = minute_bucket_list
+        self.request_ticket_count_list = []
         self.tickets_issued_count_list = []
         self.overflow_ticket_count_list = []
         self.rate_exception_ticket_count_list = []
@@ -458,29 +459,37 @@ class RateLlmiterGraph:
         self.trim_inactive_seconds()
         for minute_bucket in self.minute_bucket_list:
             for second_bucket in minute_bucket.second_bucket_list:
+                self.request_ticket_count_list.append(second_bucket.second_requested_ticket_count)
                 self.tickets_issued_count_list.append(second_bucket.issued_ticket_count)
                 self.overflow_ticket_count_list.append(len(second_bucket.overflow_request_list))
                 self.rate_exception_ticket_count_list.append(len(second_bucket.rate_limited_request_list))
                 self.finished_request_count_list.append(len(second_bucket.finished_ticket_list))
-        self.max_value = max(max(self.finished_request_count_list), max(self.tickets_issued_count_list),
-                             max(self.overflow_ticket_count_list), max(self.rate_exception_ticket_count_list))
+        self.max_value = max(max(self.request_ticket_count_list), max(self.tickets_issued_count_list),
+                             max(self.overflow_ticket_count_list), max(self.rate_exception_ticket_count_list),
+                             max(self.finished_request_count_list))
 
-    def make_graph(self, plot_file_name, model_name):
+    def make_graph(self, plot_file_name, model_name, issued_tickets_only=False):
         plt.figure(figsize=(10, 4))
 
         # Plot each line with a different color
         x = range(len(self.tickets_issued_count_list))
         plt.plot(x, self.tickets_issued_count_list, label='Tickets Issued', color='green')
-        plt.plot(x, self.overflow_ticket_count_list, label='Overflow Tickets', color='blue')
-        plt.plot(x, self.rate_exception_ticket_count_list, label='Rate Exception Tickets', color='red')
-        plt.plot(x, self.finished_request_count_list, label='Finished Request', color='purple')
+        if issued_tickets_only is False:
+            plt.plot(x, self.request_ticket_count_list, label='Requests', color='orange')
+            plt.plot(x, self.overflow_ticket_count_list, label='Overflow Tickets', color='blue')
+            plt.plot(x, self.rate_exception_ticket_count_list, label='Rate Exception Tickets', color='red')
+            plt.plot(x, self.finished_request_count_list, label='Finished Request', color='purple')
 
         # Set the title
         plt.title(f"Request Flow for {model_name}")
 
+        if issued_tickets_only:
+            max_value = max(self.tickets_issued_count_list)
+        else:
+            max_value = self.max_value
         # Set y-axis properties
-        plt.ylim(0, self.max_value)
-        plt.yticks(range(0, self.max_value + 1, self.max_value // 4))  # 5 ticks including 0 and max_value
+        plt.ylim(0, max_value)
+        plt.yticks(range(0, max_value + 2, max_value // 4))  # 5 ticks including 0 and max_value
         plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: format(int(x), ',')))
 
         # Set x-axis properties
@@ -495,6 +504,58 @@ class RateLlmiterGraph:
         plt.ylabel('Number of Requests')
 
         # Show the plot
+        plt.tight_layout()
+        plt.savefig(plot_file_name, dpi=300)
+        plt.show()
+        plt.close()
+
+
+class CompareModelsGraph:
+    def __init__(self, minute_bucket_list: [MinuteTicketBucket]):
+        self.minute_bucket_list = minute_bucket_list
+        self.finished_request_count_dict = {}
+        self.max_value = 0
+        self.collect_data()
+
+    def collect_data(self):
+        all_counts_list = []
+        last_non_zero_index = 0
+        for minute_bucket in self.minute_bucket_list:
+            rate_limiter_finished_request_count_list = self.finished_request_count_dict.get(
+                minute_bucket.rate_limiter_name)
+            if rate_limiter_finished_request_count_list is None:
+                rate_limiter_finished_request_count_list = []
+                self.finished_request_count_dict[
+                    minute_bucket.rate_limiter_name] = rate_limiter_finished_request_count_list
+            for second_bucket in minute_bucket.second_bucket_list:
+                count = len(second_bucket.finished_ticket_list)
+                rate_limiter_finished_request_count_list.append(count)
+                all_counts_list.append(count)
+                if count > 0 and last_non_zero_index < (len(rate_limiter_finished_request_count_list) - 1):
+                    last_non_zero_index = len(rate_limiter_finished_request_count_list) - 1
+        # trim off the seconds that have no activity
+        for rate_limiter_name, finished_request_count_list in self.finished_request_count_dict.items():
+            if len(finished_request_count_list) > last_non_zero_index + 1:
+                new_list = finished_request_count_list[:last_non_zero_index + 1]
+                self.finished_request_count_dict[rate_limiter_name] = new_list
+        self.max_value = max(all_counts_list)
+
+    def make_graph(self, plot_file_name):
+        plt.figure(figsize=(10, 4))
+
+        default_count_list = next(iter(self.finished_request_count_dict.values()))
+        x = range(len(default_count_list))
+        for rate_limiter_name, finished_request_count_list in self.finished_request_count_dict.items():
+            plt.plot(x, finished_request_count_list, label=rate_limiter_name)
+        plt.title("Finished Requests by Rate Limter")
+        plt.ylim(0, self.max_value)
+        plt.yticks(range(0, self.max_value + 1, self.max_value // 4))  # 5 ticks including 0 and max_value
+        plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: format(int(x), ',')))
+        plt.xlim(0, len(default_count_list) - 1)
+        plt.xticks([len(default_count_list) - 1], [str(len(default_count_list) - 1)])
+        plt.legend()
+        plt.xlabel('Offset in Seconds')
+        plt.ylabel('Number of Requests')
         plt.tight_layout()
         plt.savefig(plot_file_name, dpi=300)
         plt.show()
@@ -588,17 +649,19 @@ class RateLlmiterMonitor:
         file_name = os.path.basename(session_file)
         return bucket_list, file_name
 
-    def graph_model_requests(self, file_name, model_name):
+    def graph_model_requests(self, file_name, model_name, issued_tickets_only=False):
         bucket_list, file_name = self.load_session_file(file_name, model_name)
         if len(bucket_list) == 0:
             print("No data in file")
             return
         if model_name is None:
-            print("compared to all models")
+            graph = CompareModelsGraph(bucket_list)
+            plot_file_name = file_name.replace(".jsonl", "-compare.png")
+            graph.make_graph(plot_file_name)
         else:
             graph = RateLlmiterGraph(bucket_list)
             plot_file_name = file_name.replace(".jsonl", "-" + sanitize_file_name(model_name) + ".png")
-            graph.make_graph(plot_file_name, model_name)
+            graph.make_graph(plot_file_name, model_name, issued_tickets_only)
 
     @staticmethod
     def get_instance():
