@@ -26,8 +26,6 @@ MIN_TEST_IF_SERVICE_RESUMED_INTERVAL = 10
 MAX_TEST_IF_SERVICE_RESUMED_INTERVAL = 65
 INTERVAL_BACKOFF_RATE = 1.5
 
-PLOT_FONT_SIZE = 8
-
 # For graph names, model name can include / characters, so we need to sanitize the name
 def sanitize_file_name(file_name):
     result = file_name.replace("/", "-")
@@ -474,22 +472,22 @@ class RateLlmiterGraph:
         all_values = []
         if lines.find("i") >= 0:
             all_values.extend(self.tickets_issued_count_list)
-            plt.plot(x, self.tickets_issued_count_list, label='Tickets Issued', color='green')
+            plt.plot(x, self.tickets_issued_count_list, label='Tickets Issued', color='green', linewidth=2, zorder=3)
         if lines.find("r") >= 0:
             all_values.extend(self.request_ticket_count_list)
-            plt.plot(x, self.request_ticket_count_list, label='Requests', color='orange')
+            plt.plot(x, self.request_ticket_count_list, label='Requests', color='orange', linewidth=2, zorder=2)
         if lines.find("o") >= 0:
             all_values.extend(self.overflow_ticket_count_list)
-            plt.plot(x, self.overflow_ticket_count_list, label='Overflow Tickets', color='blue')
+            plt.plot(x, self.overflow_ticket_count_list, label='Overflow Tickets', color='blue', alpha=0.3, zorder=1)
         if lines.find("e") >= 0:
             all_values.extend(self.rate_exception_ticket_count_list)
-            plt.plot(x, self.rate_exception_ticket_count_list, label='Rate Exception Tickets', color='red')
+            plt.plot(x, self.rate_exception_ticket_count_list, label='Retry Tickets', color='red', zorder=1)
         if lines.find("f") >= 0:
             all_values.extend(self.finished_request_count_list)
-            plt.plot(x, self.finished_request_count_list, label='Finished Request', color='purple')
+            plt.plot(x, self.finished_request_count_list, label='Finished Request', color='purple', alpha=0.3, zorder=1)
 
         # Set the title
-        plt.title(f"Request Flow for {model_name}")
+        plt.title(f"Request Flow for {model_name}", fontsize=16, fontweight='bold')
 
         max_value = max(all_values)
         # Set y-axis properties
@@ -502,23 +500,32 @@ class RateLlmiterGraph:
 
         # Set x-axis properties
         plt.xlim(0, len(self.tickets_issued_count_list) - 1)
-        #plt.xticks([len(self.tickets_issued_count_list) - 1], [str(len(self.tickets_issued_count_list) - 1)])
         max_x = len(self.tickets_issued_count_list) - 1
         ticks = [int(i * max_x / 4) for i in range(5)]
         ticks[-1] = max_x  # Ensure the last tick is always the last index
-        plt.xticks(ticks, ticks)
+        tick_labels = [str(tick) for tick in ticks]
+        plt.xticks(ticks=ticks, labels=tick_labels, fontsize=10)
 
         # Add legend
         plt.legend()
 
         # Add labels
-        plt.xlabel('Offset in Seconds')
-        plt.ylabel('Number of Requests')
+        plt.xlabel('Offset in Seconds', fontsize=12)
+        plt.ylabel('Number of Requests', fontsize=12)
 
-        # Show the plot
+        # Add a light gray grid that aligns with the axis ticks
+        plt.grid(True, which='both', color='lightgray', linestyle='-', linewidth=0.5)
+
+        # Align grid lines with major ticks on both x and y axes
+        plt.gca().xaxis.set_major_locator(plt.MaxNLocator(integer=True))  # Ensure grid aligns with x-axis ticks
+        plt.gca().yaxis.set_major_locator(plt.MaxNLocator(integer=True))  # Ensure grid aligns with y-axis ticks
+
+
+        plt.legend(loc='upper right', bbox_to_anchor=(1, 1), frameon=False, fontsize=8)
+
         plt.tight_layout()
         plt.savefig(plot_file_name, dpi=300)
-        plt.show()
+        #plt.show()
         plt.close()
 
 

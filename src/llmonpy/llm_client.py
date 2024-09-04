@@ -54,7 +54,7 @@ GEMINI_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_T
 FIREWORKS_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 TOMBU_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 MISTRAL_RATE_LIMITER = BucketRateLimiter(180, 20000000, "MISTRAL")
-FIREWORKS_RATE_LIMITER = BucketRateLimiter(180, 20000000, "FIREWORKS")
+FIREWORKS_RATE_LIMITER = BucketRateLimiter(300, 20000000, "FIREWORKS")
 TOMBU_RATE_LIMITER = BucketRateLimiter(1200, 20000000, "TOMBU_FIREWORKS")
 
 
