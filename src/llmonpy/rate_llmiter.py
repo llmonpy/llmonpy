@@ -564,16 +564,36 @@ class CompareModelsGraph:
         x = range(len(default_count_list))
         for rate_limiter_name, finished_request_count_list in self.finished_request_count_dict.items():
             plt.plot(x, finished_request_count_list, label=rate_limiter_name)
-        plt.title("Finished Requests by Rate Limter")
-        plt.ylim(0, self.max_value)
-        plt.yticks(range(0, self.max_value + 1, self.max_value // 4))  # 5 ticks including 0 and max_value
+        plt.title("Finished Requests by Rate Limter", fontsize=16, fontweight='bold')
+
+        # Set y-axis properties
+        plt.ylim(0, self.max_value + 2)
+        if self.max_value < 5:
+            plt.yticks(range(0, self.max_value + 1, self.max_value))
+        else:
+            plt.yticks(range(0, self.max_value + 2, self.max_value // 4))  # 5 ticks including 0 and max_value
         plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: format(int(x), ',')))
+
+        # Set x-axis properties
         plt.xlim(0, len(default_count_list) - 1)
-        plt.xticks([len(default_count_list) - 1], [str(len(default_count_list) - 1)])
-        plt.legend()
-        plt.xlabel('Offset in Seconds')
-        plt.ylabel('Number of Requests')
-        plt.tight_layout()
+        max_x = len(default_count_list) - 1
+        ticks = [int(i * max_x / 4) for i in range(5)]
+        ticks[-1] = max_x  # Ensure the last tick is always the last index
+        tick_labels = [str(tick) for tick in ticks]
+        plt.xticks(ticks=ticks, labels=tick_labels, fontsize=10)
+        plt.gca().xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: format(int(x), ',')))
+
+        plt.xlabel('Offset in Seconds', fontsize=12)
+        plt.ylabel('Number of Requests', fontsize=12)
+
+        # Add a light gray grid that aligns with the axis ticks
+        plt.grid(True, which='both', color='lightgray', linestyle='-', linewidth=0.5)
+
+        # Align grid lines with major ticks on both x and y axes
+        plt.gca().xaxis.set_major_locator(plt.MaxNLocator(integer=True))  # Ensure grid aligns with x-axis ticks
+        plt.gca().yaxis.set_major_locator(plt.MaxNLocator(integer=True))  # Ensure grid aligns with y-axis ticks
+
+        plt.legend(loc='upper right', bbox_to_anchor=(1, 1), frameon=True, fontsize=6)
         plt.savefig(plot_file_name, dpi=300)
         plt.show()
         plt.close()
