@@ -505,9 +505,7 @@ class RateLlmiterGraph:
         ticks[-1] = max_x  # Ensure the last tick is always the last index
         tick_labels = [str(tick) for tick in ticks]
         plt.xticks(ticks=ticks, labels=tick_labels, fontsize=10)
-
-        # Add legend
-        plt.legend()
+        plt.gca().xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: format(int(x), ',')))
 
         # Add labels
         plt.xlabel('Offset in Seconds', fontsize=12)
@@ -521,11 +519,11 @@ class RateLlmiterGraph:
         plt.gca().yaxis.set_major_locator(plt.MaxNLocator(integer=True))  # Ensure grid aligns with y-axis ticks
 
 
-        plt.legend(loc='upper right', bbox_to_anchor=(1, 1), frameon=False, fontsize=8)
+        plt.legend(loc='upper right', bbox_to_anchor=(1, 1), frameon=True, fontsize=6)
 
         plt.tight_layout()
         plt.savefig(plot_file_name, dpi=300)
-        #plt.show()
+        plt.show()
         plt.close()
 
 
