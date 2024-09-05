@@ -280,12 +280,12 @@ class LlmClientResponse:
 class LlmClient(RateLimitedService):
     all_client_list = []
 
-    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
+    def __init__(self, model_name, max_input, rate_limiter, thread_pool=None, price_per_input_token=0.0,
                  price_per_output_token=0.0):
         self.model_name = model_name
         self.max_input = max_input
         self.rate_limiter = rate_limiter
-        self.thread_pool = thead_pool
+        self.thread_pool = thread_pool
         self.price_per_input_token = price_per_input_token
         self.price_per_output_token = price_per_output_token
         LlmClient.all_client_list.append(self)
@@ -403,9 +403,9 @@ class LlmClient(RateLimitedService):
 
 
 class OpenAIModel(LlmClient):
-    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
+    def __init__(self, model_name, max_input, rate_limiter, thread_pool=None, price_per_input_token=0.0,
                  price_per_output_token=0.0):
-        super().__init__(model_name, max_input, rate_limiter, thead_pool, price_per_input_token, price_per_output_token)
+        super().__init__(model_name, max_input, rate_limiter, thread_pool, price_per_input_token, price_per_output_token)
         self.client = Nothing
 
     def start(self):
@@ -446,9 +446,9 @@ class OpenAIModel(LlmClient):
 
 
 class DeepseekModel(LlmClient):
-    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
+    def __init__(self, model_name, max_input, rate_limiter, thread_pool=None, price_per_input_token=0.0,
                  price_per_output_token=0.0):
-        super().__init__(model_name, max_input, rate_limiter, thead_pool, price_per_input_token, price_per_output_token)
+        super().__init__(model_name, max_input, rate_limiter, thread_pool, price_per_input_token, price_per_output_token)
         self.client = Nothing
 
     def start(self):
@@ -469,9 +469,9 @@ class DeepseekModel(LlmClient):
 
 
 class AnthropicModel(LlmClient):
-    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
+    def __init__(self, model_name, max_input, rate_limiter, thread_pool=None, price_per_input_token=0.0,
                  price_per_output_token=0.0):
-        super().__init__(model_name, max_input, rate_limiter, thead_pool, price_per_input_token, price_per_output_token)
+        super().__init__(model_name, max_input, rate_limiter, thread_pool, price_per_input_token, price_per_output_token)
         self.client = Nothing
 
     def start(self):
@@ -518,9 +518,9 @@ class AnthropicModel(LlmClient):
 
 
 class MistralLlmClient(LlmClient):
-    def __init__(self, model_name, max_input, rate_limiter, thead_pool, price_per_input_token=0.0,
+    def __init__(self, model_name, max_input, rate_limiter, thread_pool, price_per_input_token=0.0,
                  price_per_output_token=0.0):
-        super().__init__(model_name, max_input, rate_limiter, thead_pool, price_per_input_token, price_per_output_token)
+        super().__init__(model_name, max_input, rate_limiter, thread_pool, price_per_input_token, price_per_output_token)
         self.client = Nothing
 
     def start(self):
@@ -564,9 +564,9 @@ class MistralLlmClient(LlmClient):
 
 # https://ai.google.dev/gemini-api/docs/get-started/tutorial?authuser=2&lang=python
 class GeminiModel(LlmClient):
-    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
+    def __init__(self, model_name, max_input, rate_limiter, thread_pool=None, price_per_input_token=0.0,
                  price_per_output_token=0.0):
-        super().__init__(model_name, max_input, rate_limiter, thead_pool, price_per_input_token, price_per_output_token)
+        super().__init__(model_name, max_input, rate_limiter, thread_pool, price_per_input_token, price_per_output_token)
         self.client = Nothing
 
     def start(self):
@@ -609,9 +609,9 @@ class GeminiModel(LlmClient):
 
 
 class TogetherAIModel(LlmClient):
-    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
+    def __init__(self, model_name, max_input, rate_limiter, thread_pool=None, price_per_input_token=0.0,
                  price_per_output_token=0.0):
-        super().__init__(model_name, max_input, rate_limiter, thead_pool, price_per_input_token, price_per_output_token)
+        super().__init__(model_name, max_input, rate_limiter, thread_pool, price_per_input_token, price_per_output_token)
         self.client = Nothing
 
     def start(self):
@@ -649,9 +649,9 @@ class TogetherAIModel(LlmClient):
 
 
 class FireworksAIModel(LlmClient):
-    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
+    def __init__(self, model_name, max_input, rate_limiter, thread_pool=None, price_per_input_token=0.0,
                  price_per_output_token=0.0, system_role_supported=True):
-        super().__init__(model_name, max_input, rate_limiter, thead_pool, price_per_input_token, price_per_output_token)
+        super().__init__(model_name, max_input, rate_limiter, thread_pool, price_per_input_token, price_per_output_token)
         self.client = Nothing
         self.system_role_supported = system_role_supported
 
@@ -703,9 +703,9 @@ class FireworksAIModel(LlmClient):
         return result
 
 class GroqModel(LlmClient):
-    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
+    def __init__(self, model_name, max_input, rate_limiter, thread_pool=None, price_per_input_token=0.0,
                  price_per_output_token=0.0, system_role_supported=True):
-        super().__init__(model_name, max_input, rate_limiter, thead_pool, price_per_input_token, price_per_output_token)
+        super().__init__(model_name, max_input, rate_limiter, thread_pool, price_per_input_token, price_per_output_token)
         self.client = Nothing
         self.system_role_supported = system_role_supported
 
