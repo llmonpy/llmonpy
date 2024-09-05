@@ -26,8 +26,6 @@ MIN_TEST_IF_SERVICE_RESUMED_INTERVAL = 10
 MAX_TEST_IF_SERVICE_RESUMED_INTERVAL = 65
 INTERVAL_BACKOFF_RATE = 1.5
 
-PLOT_FONT_SIZE = 8
-
 # For graph names, model name can include / characters, so we need to sanitize the name
 def sanitize_file_name(file_name):
     result = file_name.replace("/", "-")
@@ -319,6 +317,7 @@ class BucketRateLimiter:
         if request_per_minute < 60: # this isn't optimal, but don't really care about this use case
             self.start_ramp_ticket_count = 1
             self.max_tickets_per_second = 1
+            self.ramp_ticket_count_delta = 1
         else:
             self.max_tickets_per_second = int(request_per_minute / 60)
             self.start_ramp_ticket_count = max(round((request_per_minute / 60) * 0.25), 1)
@@ -474,22 +473,22 @@ class RateLlmiterGraph:
         all_values = []
         if lines.find("i") >= 0:
             all_values.extend(self.tickets_issued_count_list)
-            plt.plot(x, self.tickets_issued_count_list, label='Tickets Issued', color='green')
+            plt.plot(x, self.tickets_issued_count_list, label='Tickets Issued', color='green', linewidth=2, zorder=3)
         if lines.find("r") >= 0:
             all_values.extend(self.request_ticket_count_list)
-            plt.plot(x, self.request_ticket_count_list, label='Requests', color='orange')
+            plt.plot(x, self.request_ticket_count_list, label='Requests', color='orange', linewidth=2, zorder=2)
         if lines.find("o") >= 0:
             all_values.extend(self.overflow_ticket_count_list)
-            plt.plot(x, self.overflow_ticket_count_list, label='Overflow Tickets', color='blue')
+            plt.plot(x, self.overflow_ticket_count_list, label='Overflow Tickets', color='blue', alpha=0.3, zorder=1)
         if lines.find("e") >= 0:
             all_values.extend(self.rate_exception_ticket_count_list)
-            plt.plot(x, self.rate_exception_ticket_count_list, label='Rate Exception Tickets', color='red')
+            plt.plot(x, self.rate_exception_ticket_count_list, label='Retry Tickets', color='red', zorder=1)
         if lines.find("f") >= 0:
             all_values.extend(self.finished_request_count_list)
-            plt.plot(x, self.finished_request_count_list, label='Finished Request', color='purple')
+            plt.plot(x, self.finished_request_count_list, label='Finished Request', color='purple', alpha=0.8, zorder=1)
 
         # Set the title
-        plt.title(f"Request Flow for {model_name}")
+        plt.title(f"Request Flow for {model_name}", fontsize=16, fontweight='bold')
 
         max_value = max(all_values)
         # Set y-axis properties
@@ -502,20 +501,27 @@ class RateLlmiterGraph:
 
         # Set x-axis properties
         plt.xlim(0, len(self.tickets_issued_count_list) - 1)
-        #plt.xticks([len(self.tickets_issued_count_list) - 1], [str(len(self.tickets_issued_count_list) - 1)])
         max_x = len(self.tickets_issued_count_list) - 1
         ticks = [int(i * max_x / 4) for i in range(5)]
         ticks[-1] = max_x  # Ensure the last tick is always the last index
-        plt.xticks(ticks, ticks)
-
-        # Add legend
-        plt.legend()
+        tick_labels = [str(tick) for tick in ticks]
+        plt.xticks(ticks=ticks, labels=tick_labels, fontsize=10)
+        plt.gca().xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: format(int(x), ',')))
 
         # Add labels
-        plt.xlabel('Offset in Seconds')
-        plt.ylabel('Number of Requests')
+        plt.xlabel('Offset in Seconds', fontsize=12)
+        plt.ylabel('Number of Requests', fontsize=12)
 
-        # Show the plot
+        # Add a light gray grid that aligns with the axis ticks
+        plt.grid(True, which='both', color='lightgray', linestyle='-', linewidth=0.5)
+
+        # Align grid lines with major ticks on both x and y axes
+        plt.gca().xaxis.set_major_locator(plt.MaxNLocator(integer=True))  # Ensure grid aligns with x-axis ticks
+        plt.gca().yaxis.set_major_locator(plt.MaxNLocator(integer=True))  # Ensure grid aligns with y-axis ticks
+
+
+        plt.legend(loc='upper right', bbox_to_anchor=(1, 1), frameon=True, fontsize=6)
+
         plt.tight_layout()
         plt.savefig(plot_file_name, dpi=300)
         plt.show()
@@ -552,23 +558,57 @@ class CompareModelsGraph:
                 self.finished_request_count_dict[rate_limiter_name] = new_list
         self.max_value = max(all_counts_list)
 
+    def shorten_rate_limiter_name(self, rate_limiter_name):
+        result = rate_limiter_name
+        if rate_limiter_name.find("haiku") >= 0:
+            result = "haiku"
+        elif rate_limiter_name.find("sonnet") >= 0:
+            result = "sonnet"
+        elif rate_limiter_name.find("gpt4o-mini") >= 0:
+            result = "gpt4o-mini"
+        elif rate_limiter_name.find("gpt4o") >= 0:
+            result = "gpt4o"
+        return result
+
     def make_graph(self, plot_file_name):
         plt.figure(figsize=(10, 4))
 
         default_count_list = next(iter(self.finished_request_count_dict.values()))
         x = range(len(default_count_list))
         for rate_limiter_name, finished_request_count_list in self.finished_request_count_dict.items():
-            plt.plot(x, finished_request_count_list, label=rate_limiter_name)
-        plt.title("Finished Requests by Rate Limter")
-        plt.ylim(0, self.max_value)
-        plt.yticks(range(0, self.max_value + 1, self.max_value // 4))  # 5 ticks including 0 and max_value
+            total_requests = sum(finished_request_count_list)
+            rate_limiter_label = self.shorten_rate_limiter_name(rate_limiter_name) + " req:" + str(total_requests)
+            plt.plot(x, finished_request_count_list, label=rate_limiter_label)
+        plt.title("Finished Requests by Rate Limter", fontsize=16, fontweight='bold')
+
+        # Set y-axis properties
+        plt.ylim(0, self.max_value + 2)
+        if self.max_value < 5:
+            plt.yticks(range(0, self.max_value + 1, self.max_value))
+        else:
+            plt.yticks(range(0, self.max_value + 2, self.max_value // 4))  # 5 ticks including 0 and max_value
         plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: format(int(x), ',')))
+
+        # Set x-axis properties
         plt.xlim(0, len(default_count_list) - 1)
-        plt.xticks([len(default_count_list) - 1], [str(len(default_count_list) - 1)])
-        plt.legend()
-        plt.xlabel('Offset in Seconds')
-        plt.ylabel('Number of Requests')
-        plt.tight_layout()
+        max_x = len(default_count_list) - 1
+        ticks = [int(i * max_x / 4) for i in range(5)]
+        ticks[-1] = max_x  # Ensure the last tick is always the last index
+        tick_labels = [str(tick) for tick in ticks]
+        plt.xticks(ticks=ticks, labels=tick_labels, fontsize=10)
+        plt.gca().xaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: format(int(x), ',')))
+
+        plt.xlabel('Offset in Seconds', fontsize=12)
+        plt.ylabel('Number of Requests', fontsize=12)
+
+        # Add a light gray grid that aligns with the axis ticks
+        plt.grid(True, which='both', color='lightgray', linestyle='-', linewidth=0.5)
+
+        # Align grid lines with major ticks on both x and y axes
+        plt.gca().xaxis.set_major_locator(plt.MaxNLocator(integer=True))  # Ensure grid aligns with x-axis ticks
+        plt.gca().yaxis.set_major_locator(plt.MaxNLocator(integer=True))  # Ensure grid aligns with y-axis ticks
+
+        plt.legend(loc='upper right', bbox_to_anchor=(1, 1), frameon=True, fontsize=6)
         plt.savefig(plot_file_name, dpi=300)
         plt.show()
         plt.close()
