@@ -27,6 +27,7 @@ import anthropic
 from fireworks.client import Fireworks
 from fireworks.client.error import RateLimitError
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
+from groq import Groq
 from mistralai import Mistral
 from nothingpy import Nothing
 from openai import OpenAI
@@ -53,6 +54,7 @@ DEEPSEEK_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT
 GEMINI_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 FIREWORKS_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 TOMBU_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
+GROQ_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 MISTRAL_RATE_LIMITER = BucketRateLimiter(180, 20000000, "MISTRAL")
 FIREWORKS_RATE_LIMITER = BucketRateLimiter(300, 20000000, "FIREWORKS")
 TOMBU_RATE_LIMITER = BucketRateLimiter(1200, 20000000, "TOMBU_FIREWORKS")
@@ -700,6 +702,60 @@ class FireworksAIModel(LlmClient):
             raise LlmClientJSONFormatException(response_text)
         return result
 
+class GroqModel(LlmClient):
+    def __init__(self, model_name, max_input, rate_limiter, thead_pool=None, price_per_input_token=0.0,
+                 price_per_output_token=0.0, system_role_supported=True):
+        super().__init__(model_name, max_input, rate_limiter, thead_pool, price_per_input_token, price_per_output_token)
+        self.client = Nothing
+        self.system_role_supported = system_role_supported
+
+    def start(self):
+        key = get_api_key("GROQ_API_KEY")
+        self.client = Groq(api_key=key)
+
+    def do_prompt(self, prompt_text, system_prompt="You are an expert at analyzing text.", json_output=False,
+                  temp=0.0, max_output=None):
+        system_prompt = system_prompt if system_prompt is not Nothing else "You are an expert at analyzing text."
+        result = None
+        response_text = Nothing
+        response_format = "json_object" if json_output else "text"
+        # retries just for json format errors
+        for attempt in range(PROMPT_RETRIES):
+            if self.system_role_supported:
+                completion = self.client.chat.completions.create(
+                    model=self.model_name,
+                    response_format={"type": response_format},
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt_text}
+                    ],
+                    temperature=temp
+                )
+            else:
+                full_prompt = str(system_prompt) + "\n\n" + prompt_text
+                completion = self.client.chat.completions.create(
+                    model=self.model_name,
+                    response_format={"type": response_format},
+                    messages=[
+                        {"role": "user", "content": full_prompt}
+                    ],
+                    temperature=temp
+                )
+            response_text = completion.choices[0].message.content
+            response_dict = Nothing
+            if json_output:
+                try:
+                    response_text = fix_common_json_encoding_errors(response_text)
+                    response_dict = json.loads(response_text)
+                except Exception as e:
+                    continue
+            input_cost, output_cost = self.calculate_costs(completion.usage.prompt_tokens,
+                                                           completion.usage.completion_tokens)
+            result = LlmClientResponse(response_text, response_dict, input_cost, output_cost)
+        if result is None and json_output:
+            raise LlmClientJSONFormatException(response_text)
+        return result
+
 
 # MIXTRAL tokenizer generates 20% more tokens than openai, so after reduce max_input to 80% of openai
 MISTRAL_7B = MistralLlmClient("open-mistral-7b", 12000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 0.25, 0.25)
@@ -739,7 +795,10 @@ TOMBU_DOLPHIN_QWEN2_72B= FireworksAIModel("accounts/fireworks/models/dolphin-2-9
                                          TOMBU_RATE_LIMITER, TOMBU_THREAD_POOL, 0.20, 0.20)
 TOMBU_NEMO_12B= FireworksAIModel("accounts/fireworks/models/mistral-nemo-instruct-2407#accounts/tombu-8c8576/deployments/0fdd946e", 120000,
                                          TOMBU_RATE_LIMITER, TOMBU_THREAD_POOL, 0.20, 0.20)
-
+GROQ_LLAMA3_1_70B= GroqModel("llama-3.1-70b-versatile", 120000,
+                                         BucketRateLimiter(100, 130000), GROQ_THREAD_POOL, 0.70, 0.70)
+GROQ_LLAMA3_1_8B= GroqModel("llama-3.1-8b-instant", 120000,
+                                         BucketRateLimiter(30, 130000), GROQ_THREAD_POOL, 0.20, 0.20)
 
 ACTIVE_LLM_CLIENT_DICT = {}
 

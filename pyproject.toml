@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llmonpy"
-version = "0.1.29"
+version = "0.1.30"
 authors = [{ name="Tom Burns", email="public@llmonpy.ai" }]
 description = "AI pipeline framework for Python."
 readme = "README.md"
@@ -15,11 +15,13 @@ dependencies = [
     "mistralai",
     "anthropic",
     "fireworks-ai",
+    "together",
+    "groq",
     "nothingpy",
     "jinja2",
     "flask",
     "flask_cors",
-    "together"
+    "matplotlib"
 ]
 requires-python = ">=3.12"
 classifiers = [
