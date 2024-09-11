@@ -124,7 +124,8 @@ class LLMonPyStepOutput:
         return result
 
     def to_dict(self):
-        pass
+        result = copy.deepcopy(vars(self))
+        return result
 
     def to_json(self):
         result = json.dumps(self.to_dict())

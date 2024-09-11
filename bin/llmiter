@@ -1,3 +1,51 @@
 #!/bin/bash
 
-python3 src/llmonpy/llmonpy_cli.py llmiter $1
+export PYTHONPATH=src/:$PYTHONPATH
+
+# Initialize variables with default values
+file=""
+name=""
+lines=""
+
+# Parse command line arguments
+for arg in "$@"
+do
+    case $arg in
+        -file=*)
+        file="${arg#*=}"
+        shift # Remove --file= from processing
+        ;;
+        -name=*)
+        name="${arg#*=}"
+        shift # Remove --name= from processing
+        ;;
+        -lines=*)
+        lines="${arg#*=}"
+        shift # Remove --lines= from processing
+        ;;
+        *)
+        # Unknown option
+        ;;
+    esac
+done
+
+# Construct the command with arguments
+cmd="python3 src/llmonpy/llmonpy_cli.py llmiter"
+
+if [ ! -z "$file" ]; then
+    cmd+=" -file=$file"
+fi
+
+if [ ! -z "$name" ]; then
+    cmd+=" -name=$name"
+fi
+
+if [ ! -z "$lines" ]; then
+    cmd+=" -lines=$lines"
+fi
+
+# Execute the command
+echo "Executing: $cmd"
+full_string=$(eval $cmd | grep "plot_file_name:")
+file_to_open=${full_string#plot_file_name:}
+open "$file_to_open"

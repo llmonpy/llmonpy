@@ -80,6 +80,93 @@ class MatchPassFailOutput(PassFailOutput):
         return result
 
 
+class ColaAnalyzeSentencePrompt(LLMonPyPrompt):
+    prompt_text = """
+        Can you concisely describe any grammatical errors you see in this sentence?  If you do not see any errors, 
+        reply with "There are no grammatical errors in this sentence". 
+        <sentence>
+        {{ sentence }}
+        </sentence>
+        
+        {% if expert_analysis_list %}
+            Other experts have analyzed this sentence and they said:
+            
+            {% for expert in expert_analysis_list %}
+                # Expert {{ loop.index }}
+                "{{ expert.analysis }}"
+            {% endfor %}
+        {% endif %}
+        What is your analysis of the sentences grammar? Do not try to correct the sentence.  Only respond with your
+        analysis of the sentence grammar as it is.
+    """
+    system_prompt = "You are an expert at english grammar."
+    output_format = LLMONPY_OUTPUT_FORMAT_TEXT
+
+    class LLMonPyOutput(LLMonPyStepOutput):
+        def __init__(self, analysis):
+            super().__init__()
+            self.analysis = analysis
+
+        def to_dict(self):
+            result = super().to_dict()
+            return result
+
+    def __init__(self, sentence, expert_analysis_list: [LLMonPyOutput] = None):
+        super().__init__()
+        self.sentence = sentence
+        self.expert_analysis_list = expert_analysis_list
+
+    def to_dict(self):
+        result = super().to_dict()
+        if self.expert_analysis_list is not None:
+            result["expert_analysis_list"] = [analysis.to_dict() for analysis in self.expert_analysis_list]
+        return result
+
+    def output_from_string(self, string):
+        result = self.LLMonPyOutput(string)
+        return result
+
+
+class AggregateColaPrompt(LLMonPyPrompt):
+    prompt_text = """
+    Several grammar experts have analyzed this sentence for grammatical errors:
+    <sentence>
+    {{ sentence }}
+    </sentence>
+    
+    {% for expert in expert_analysis_list %}
+        # Expert {{ loop.index }}
+        "{{ expert.analysis }}"
+    {% endfor %}
+    
+    Is the sentence grammatically correct?  Write 'Yes' if it is grammatical, 
+        and 'No' if it is not.  Do not include any other text in your response.
+    """
+    system_prompt = "You are an expert at english grammar."
+    output_format = LLMONPY_OUTPUT_FORMAT_TEXT
+
+    def __init__(self, id, sentence, correct_answer, expert_analysis_list: [ColaAnalyzeSentencePrompt.LLMonPyOutput]):
+        super().__init__()
+        self.id = id
+        self.sentence = sentence
+        self.correct_answer = correct_answer
+        self.expert_analysis_list = expert_analysis_list
+
+    def to_dict(self):
+        result = super().to_dict()
+        result["expert_analysis_list"] = [analysis.to_dict() for analysis in self.expert_analysis_list]
+        return result
+
+    def output_from_string(self, string):
+        result = self.LLMonPyOutput(self.id, string, self.correct_answer)
+        return result
+
+    class LLMonPyOutput(MatchPassFailOutput):
+        def __init__(self, id, generated_answer, correct_answer):
+            super().__init__(generated_answer, correct_answer)
+            self.id = id
+
+
 class ColaPrompt(LLMonPyPrompt):
     prompt_text = """
     Given the following sentence, determine if it is grammatically correct or not. Write 'Yes' if it is grammatical, 
@@ -213,8 +300,10 @@ class ColaJuryStep(LLMonPypeline):
             return result
 
         def to_dict(self):
-            result = {"passed_list": [model_info.to_dict() for model_info in self.passed_list],
-                      "failed_list": [model_info.to_dict() for model_info in self.failed_list]}
+            result = super().to_dict()
+            result["test_data"] = self.test_data.to_dict()
+            result["passed_list"] = [model_info.to_dict() for model_info in self.passed_list]
+            result["failed_list"] = [model_info.to_dict() for model_info in self.failed_list]
             return result
 
     def __init__(self, test_data, model_info_list):
@@ -227,15 +316,11 @@ class ColaJuryStep(LLMonPypeline):
                   "model_list": model_info_list}
         return result
 
+    def execute_cola_steps(self, recorder: TraceLogRecorderInterface) -> [TrackedOutput]:
+        raise NotImplementedError
+
     def execute_step(self, recorder: TraceLogRecorderInterface):
-        judge_prompt = ColaFewShotPrompt(self.test_data.id, self.test_data.sentence, self.test_data.answer)
-        step_list = create_prompt_steps(recorder, judge_prompt, self.model_info_list)
-        self.run_parallel_steps(step_list)
-        response_list = []
-        for step in step_list:
-            step_output = step.get_step_output()
-            tracked_output = TrackedOutput(recorder.get_step_id(), step_output, step.get_model_info())
-            response_list.append(tracked_output)
+        response_list = self.execute_cola_steps(recorder)
         passed_list = []
         failed_list = []
         for response in response_list:
@@ -245,6 +330,52 @@ class ColaJuryStep(LLMonPypeline):
                 failed_list.append(response)
         result = self.LLMonPyOutput(self.test_data, passed_list, failed_list)
         return result
+
+
+class FewShotColaJuryStep(ColaJuryStep):
+    def __init__(self, test_data, model_info_list):
+        super().__init__(test_data, model_info_list)
+
+    def execute_cola_steps(self, recorder: TraceLogRecorderInterface) -> [TrackedOutput]:
+        judge_prompt = ColaFewShotPrompt(self.test_data.id, self.test_data.sentence, self.test_data.answer)
+        step_list = create_prompt_steps(recorder, judge_prompt, self.model_info_list)
+        self.run_parallel_steps(step_list)
+        response_list = []
+        for step in step_list:
+            step_output = step.get_step_output()
+            tracked_output = TrackedOutput(recorder.get_step_id(), step_output, step.get_model_info())
+            response_list.append(tracked_output)
+        return response_list
+
+
+class AnalyzeAggregateColaJuryStep(ColaJuryStep):
+    def __init__(self, test_data, model_info_list):
+        super().__init__(test_data, model_info_list)
+
+    def execute_analyze_steps(self, recorder: TraceLogRecorderInterface,
+                              analysis_list:[ColaAnalyzeSentencePrompt.LLMonPyOutput] = None) -> [ColaAnalyzeSentencePrompt.LLMonPyOutput]:
+        analyze_prompt = ColaAnalyzeSentencePrompt(self.test_data.sentence, analysis_list)
+        analyze_step_list = create_prompt_steps(recorder, analyze_prompt, self.model_info_list)
+        self.run_parallel_steps(analyze_step_list)
+        analysis_list:[ColaAnalyzeSentencePrompt.LLMonPyOutput] = []
+        for step in analyze_step_list:
+            step_output = step.get_step_output()
+            print("analysis: " + step_output.analysis)
+            analysis_list.append(step_output)
+        return analysis_list
+
+    def execute_cola_steps(self, recorder: TraceLogRecorderInterface) -> [TrackedOutput]:
+        analysis_list:[ColaAnalyzeSentencePrompt.LLMonPyOutput] = self.execute_analyze_steps(recorder)
+        analysis_list:[ColaAnalyzeSentencePrompt.LLMonPyOutput] = self.execute_analyze_steps(recorder, analysis_list)
+        judge_prompt = AggregateColaPrompt(self.test_data.id, self.test_data.sentence, self.test_data.answer, analysis_list)
+        step_list = create_prompt_steps(recorder, judge_prompt, self.model_info_list)
+        self.run_parallel_steps(step_list)
+        response_list = []
+        for step in step_list:
+            step_output = step.get_step_output()
+            tracked_output = TrackedOutput(recorder.get_step_id(), step_output, step.get_model_info())
+            response_list.append(tracked_output)
+        return response_list
 
 
 class ColaPypeLine(LLMonPypeline):
@@ -269,7 +400,7 @@ class ColaPypeLine(LLMonPypeline):
     def execute_step(self, recorder: TraceLogRecorderInterface):
         step_list = []
         for cola_test in self.cola_test_list:
-            step = ColaJuryStep( cola_test, self.model_info_list).create_step(recorder)
+            step = AnalyzeAggregateColaJuryStep( cola_test, self.model_info_list).create_step(recorder)
             step_list.append(step)
         self.run_parallel_steps(step_list)
         response_list = [step.get_step_output() for step in step_list]
@@ -278,7 +409,7 @@ class ColaPypeLine(LLMonPypeline):
 
 FIVE_SMALL_MODEL_JUDGE_LIST =[ANTHROPIC_HAIKU, GPT4omini, GEMINI_FLASH, FIREWORKS_LLAMA3_1_8B, GPT3_5]
 ALL_SMALL_MODEL_JUDGE_LIST = [ANTHROPIC_HAIKU, GPT4omini, GEMINI_FLASH, FIREWORKS_LLAMA3_1_8B, FIREWORKS_MYTHOMAXL2_13B, MISTRAL_7B, GPT3_5]
-LARGE_MODEL_JUDGE_LIST = [GPT4o, ANTHROPIC_SONNET, FIREWORKS_LLAMA3_1_405B, GEMINI_PRO, MISTRAL_LARGE]
+LARGE_MODEL_JUDGE_LIST = [GPT4o, ANTHROPIC_SONNET, FIREWORKS_LLAMA3_1_405B, GEMINI_FLASH, MISTRAL_LARGE]
 MIXED_MODEL_LIST_1 = [ANTHROPIC_HAIKU, GPT4omini, GEMINI_FLASH, GPT4o, ANTHROPIC_SONNET]
 MIXED_MODEL_LIST_2 = [ANTHROPIC_HAIKU, GPT4omini, GEMINI_FLASH, FIREWORKS_LLAMA3_1_8B, FIREWORKS_MYTHOMAXL2_13B, MISTRAL_7B, GPT3_5, GEMINI_PRO, GPT4o, ANTHROPIC_SONNET, MISTRAL_LARGE]
 
@@ -290,8 +421,8 @@ if __name__ == "__main__":
         if len(sys.argv) >= 2:
             cola_file_path = sys.argv[1]
         cola_test_list = ColaTestData.read_from_file(cola_file_path)
-        model_info_list = make_model_list(ModelTemp([GPT4omini], [0.0]))
-        subset = cola_test_list[:100]
+        model_info_list = make_model_list(ModelTemp(FIVE_SMALL_MODEL_JUDGE_LIST, [0.0]))
+        subset = cola_test_list[:300]
         cola_pipeline_step = ColaPypeLine(subset, model_info_list).create_step(None)
         cola_pipeline_step.record_step()
         response_list = cola_pipeline_step.get_step_output().response_list

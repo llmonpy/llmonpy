@@ -1,5 +1,6 @@
 import concurrent
 import copy
+import traceback
 
 from llmonpy.llmonpy_step import LLMonPyStep, TraceLogRecorderInterface, STEP_TYPE_PYPELINE, \
     get_step_name_from_class_hierarchy, DEFAULT_TIMEOUT_TIME
@@ -94,6 +95,8 @@ class LLMonPypeline:
                 if handle_result_function is not None:
                     handle_result_function(returned_step)
             except Exception as e:
+                stack_trace = traceback.format_exc()
+                print(stack_trace)
                 print(str(e)) # exception was logged in record_step
                 pass
         result_list = list(result_dict.values())

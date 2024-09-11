@@ -1,5 +1,6 @@
 import argparse
 import json
+import sys
 import traceback
 
 from llmonpy.llm_client import get_active_llm_clients, MISTRAL_7B, GPT4omini, FIREWORKS_LLAMA3_1_8B, \
@@ -31,7 +32,6 @@ def llmonpy_cli():
     first_round_info_list = make_model_list(ModelTemp(model_list, [0.0, 0.75]))
     aggregate_info_list = make_model_list(ModelTemp(model_list,[0.0, 0.75]))
     judge_client_info_list = make_model_list(ModelTemp(model_list, 0.0))
-
     try:
         if args.function == 'models':
             model_list = get_active_llm_clients()
@@ -80,8 +80,8 @@ def llmonpy_cli():
             file_name = args.file
             model_name = args.name
             lines = args.lines
-            get_rate_limiter_monitor().graph_model_requests(file_name, model_name, lines)
-            print("running llmiter test ")
+            result = get_rate_limiter_monitor().graph_model_requests(file_name, model_name, lines)
+            print("plot_file_name:"+result)
     except Exception as e:
         stack_trace = traceback.format_exc()
         print(stack_trace)
