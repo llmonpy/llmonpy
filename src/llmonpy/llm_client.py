@@ -36,7 +36,7 @@ from tenacity import retry, wait_exponential
 from together import Together
 
 from llmonpy.llmonpy_util import fix_common_json_encoding_errors
-from llmonpy.rate_llmiter import RateLlmiter, RateLimitedService, BucketRateLimiter, RateLlmiterMonitor
+from llmonpy.rate_llmiter import RateLimitedService, BucketRateLimiter, RateLlmiterMonitor
 from llmonpy.system_services import add_service_to_stop
 
 PROMPT_RETRIES = 5
@@ -336,10 +336,10 @@ class LlmClient(RateLimitedService):
                 ticket = self.wait_for_ticket_after_rate_limit_exceeded(prompt_id, ticket)
                 continue
             except Exception as e:
-                if getattr(e, "status_code", None) is not None and e.status_code == 429:
+                if getattr(e, "status_code", None) is not None and (e.status_code == 429 or e.status_code == 529):
                     ticket = self.wait_for_ticket_after_rate_limit_exceeded(prompt_id, ticket)
                     continue
-                elif getattr(e, "code", None) is not None and e.code == 429:
+                elif getattr(e, "code", None) is not None and (e.code == 429 or e.code == 529):
                     ticket = self.wait_for_ticket_after_rate_limit_exceeded(prompt_id, ticket)
                     continue
                 else:
@@ -347,38 +347,6 @@ class LlmClient(RateLimitedService):
                     llm_client_prompt_status_service().prompt_failed(prompt_id, self.model_name)
                     raise e
         return result
-
-    '''
-    @retry(wait=wait_exponential(multiplier=1, min=5, max=60))
-    def tenacity_prompt(self, prompt_id, prompt_text, system_prompt=Nothing, json_output=False, temp=0.0,
-               max_output=None) -> LlmClientResponse:
-        result = None
-        llm_client_prompt_status_service().start_prompt(prompt_id, self.model_name)
-        llm_client_prompt_status_service().got_ticket(prompt_id, self.model_name)
-        for attempt in range(RATE_LIMIT_RETRIES):
-            try:
-                result = self.do_prompt(prompt_text, system_prompt, json_output, temp, max_output)
-                if result is None or len(result.response_text) == 0:
-                    # some llms return empty result when the rate limit is exceeded, throw exception to retry
-                    raise LlmClientRateLimitException()
-                else:
-                    llm_client_prompt_status_service().prompt_done(prompt_id, self.model_name)
-                    break
-            except RateLimitError as re:
-                llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
-                raise TenacityRateLimitError()
-            except Exception as e:
-                if getattr(e, "status_code", None) is not None and e.status_code == 429:
-                    llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
-                    raise TenacityRateLimitError()
-                elif getattr(e, "code", None) is not None and e.code == 429:
-                    llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
-                    raise TenacityRateLimitError()
-                else:
-                    llm_client_prompt_status_service().prompt_failed(prompt_id, self.model_name)
-                    raise e
-        return result
-    '''
 
     def wait_for_ticket_after_rate_limit_exceeded(self, prompt_id, ticket):
         llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
@@ -427,7 +395,8 @@ class OpenAIModel(LlmClient):
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt_text}
                 ],
-                temperature=temp
+                temperature=temp,
+                timeout=90
             )
             response_text = completion.choices[0].message.content
             response_dict = Nothing
@@ -770,9 +739,9 @@ GPT4o = OpenAIModel('gpt-4o-2024-08-06', 120000, BucketRateLimiter(10000, 300000
 GPT4omini = OpenAIModel('gpt-4o-mini', 120000, BucketRateLimiter(10000, 15000000), OPENAI_THREAD_POOL, 0.15, 0.60)
 ANTHROPIC_OPUS = AnthropicModel("claude-3-opus-20240229", 180000, BucketRateLimiter(4000, 400000), ANTHROPIC_THREAD_POOL,
                                 15.0, 75.0)
-ANTHROPIC_SONNET = AnthropicModel("claude-3-5-sonnet-20240620", 180000, BucketRateLimiter(4000, 400000),
+ANTHROPIC_SONNET = AnthropicModel("claude-3-5-sonnet-20240620", 180000, BucketRateLimiter(600, 400000),
                                   ANTHROPIC_THREAD_POOL, 3.0, 15.0)
-ANTHROPIC_HAIKU = AnthropicModel("claude-3-haiku-20240307", 180000, BucketRateLimiter(4000, 400000), ANTHROPIC_THREAD_POOL,
+ANTHROPIC_HAIKU = AnthropicModel("claude-3-haiku-20240307", 180000, BucketRateLimiter(600, 400000), ANTHROPIC_THREAD_POOL,
                                  0.25, 1.25)
 # DEEPSEEK = DeepseekModel("deepseek-chat", 24000, RateLlmiter(20, MINUTE_TIME_WINDOW), DEEPSEEK_EXECUTOR)
 GEMINI_FLASH = GeminiModel("gemini-1.5-flash", 120000, BucketRateLimiter(600, 4000000), GEMINI_THREAD_POOL, 0.075, .35)

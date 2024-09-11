@@ -26,6 +26,9 @@ MIN_TEST_IF_SERVICE_RESUMED_INTERVAL = 10
 MAX_TEST_IF_SERVICE_RESUMED_INTERVAL = 65
 INTERVAL_BACKOFF_RATE = 1.5
 
+
+
+
 # For graph names, model name can include / characters, so we need to sanitize the name
 def sanitize_file_name(file_name):
     result = file_name.replace("/", "-")
@@ -366,11 +369,6 @@ class BucketRateLimiter:
             released_ticket_list = self.thread_safe_data.current_minute_bucket.transfer_tickets(last_minute_bucket)
         for ticket in released_ticket_list:
             self.resume_request(ticket)
-        # kludge -- the first minute bucket can be created before the name is set because some rate limiters are created
-        # before they are associated with a service.  Would fix by making it so models create their own rate limiter if
-        # they one is not passed in
-        if last_minute_bucket is not None and last_minute_bucket.rate_limiter_name is None:
-            last_minute_bucket.rate_limiter_name = self.rate_limited_service_name
         return last_minute_bucket
 
     def release_tickets(self):
@@ -524,7 +522,6 @@ class RateLlmiterGraph:
 
         plt.tight_layout()
         plt.savefig(plot_file_name, dpi=300)
-        plt.show()
         plt.close()
 
 
@@ -610,7 +607,6 @@ class CompareModelsGraph:
 
         plt.legend(loc='upper right', bbox_to_anchor=(1, 1), frameon=True, fontsize=6)
         plt.savefig(plot_file_name, dpi=300)
-        plt.show()
         plt.close()
 
 
@@ -704,9 +700,10 @@ class RateLlmiterMonitor:
     def graph_model_requests(self, file_name, model_name, lines:str):
         lines = lines if lines is not None else "iroef" # i=issued, r=requests, o=overflow, e=exceptions, f=finished
         bucket_list, file_name = self.load_session_file(file_name, model_name)
+        plot_file_name = ""
         if len(bucket_list) == 0:
             print("No data in file")
-            return
+            return plot_file_name
         if model_name is None:
             graph = CompareModelsGraph(bucket_list)
             plot_file_name = file_name.replace(".jsonl", "-compare.png")
@@ -715,6 +712,7 @@ class RateLlmiterMonitor:
             graph = RateLlmiterGraph(bucket_list)
             plot_file_name = file_name.replace(".jsonl", "-" + sanitize_file_name(model_name) + "_" + lines + ".png")
             graph.make_graph(plot_file_name, model_name, lines)
+        return plot_file_name
 
     @staticmethod
     def get_instance():
@@ -722,61 +720,3 @@ class RateLlmiterMonitor:
             RateLlmiterMonitor._instance = RateLlmiterMonitor()
         return RateLlmiterMonitor._instance
 
-
-class RateLlmiter:
-    def __init__(self, request_per_minute, tokens_per_minute):
-        self.request_per_minute = request_per_minute
-        self.tokens_per_minute = tokens_per_minute
-        if request_per_minute < 60:
-            self.time_window = 60
-            self.intervals_before_refill = 1
-            self.request_per_interval = request_per_minute
-        else:
-            self.time_window = 1
-            self.intervals_before_refill = 60
-            self.request_per_interval = round(self.request_per_minute / 60)
-        self.current_interval = 0
-        self.request_limit_queue = Queue()
-        self.token_rate_limit_exceeded_queue = Queue()
-        self.token_rate_limit_exceeded_count = 0
-        self.token_rate_limit_exceeded_lock = threading.Lock()
-        RateLlmiterMonitor.get_instance().add_rate_limiter(self)
-
-    def add_tickets(self):
-        add_to_request_limit_queue = self.request_per_interval
-        add_too_rate_limit_exceeded_queue = 0
-        with self.token_rate_limit_exceeded_lock:
-            self.current_interval += 1
-            if self.current_interval % self.intervals_before_refill != 0 and self.token_rate_limit_exceeded_count > 0:
-                self.add_to_request_limit_queue = 0 # if we are not at the end of the interval, don't add any tickets
-            elif ((self.current_interval % self.intervals_before_refill) == 0) and self.token_rate_limit_exceeded_count > 0:
-                if self.token_rate_limit_exceeded_count < self.request_per_interval:
-                    add_too_rate_limit_exceeded_queue = self.token_rate_limit_exceeded_count
-                    add_to_request_limit_queue = self.request_per_interval - self.token_rate_limit_exceeded_count
-                    self.token_rate_limit_exceeded_count = 0
-                else:
-                    self.token_rate_limit_exceeded_count -= self.request_per_interval
-                    add_too_rate_limit_exceeded_queue = self.request_per_interval
-                    add_to_request_limit_queue = 0
-        for _ in range(add_too_rate_limit_exceeded_queue):
-            self.token_rate_limit_exceeded_queue.put("ticket")
-        while not self.request_limit_queue.empty():
-            self.request_limit_queue.get_nowait()
-        for _ in range(add_to_request_limit_queue):
-            self.request_limit_queue.put("ticket")
-
-    def get_ticket(self):
-        try:
-            result = self.request_limit_queue.get()
-        except Empty as empty:
-            raise empty
-        return result
-
-    def wait_for_ticket_after_rate_limit_exceeded(self):
-        with self.token_rate_limit_exceeded_lock:
-            self.token_rate_limit_exceeded_count += 1
-        try:
-            result = self.token_rate_limit_exceeded_queue.get()
-        except Empty as empty:
-            raise empty
-        return result

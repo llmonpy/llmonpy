@@ -293,7 +293,11 @@ class StepTraceData:
 
     def to_json(self):
         result_dict = self.to_dict()
-        result = json.dumps(result_dict)
+        try:
+            result = json.dumps(result_dict)
+        except Exception as e:
+            print("Error converting to json: " + str(e))
+            raise e
         return result
 
     def add_exception(self, exception):
