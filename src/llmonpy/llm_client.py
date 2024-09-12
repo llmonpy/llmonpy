@@ -36,11 +36,12 @@ from tenacity import retry, wait_exponential
 from together import Together
 
 from llmonpy.llmonpy_util import fix_common_json_encoding_errors
-from llmonpy.rate_llmiter import RateLimitedService, BucketRateLimiter, RateLlmiterMonitor
+from llmonpy.rate_llmiter import RateLimitedService, BucketRateLimiter, RateLlmiterMonitor, SecondTicketBucketListener, \
+    RATE_LIMIT_RETRIES, LlmClientRateLimitException
 from llmonpy.system_services import add_service_to_stop
+from rate_llmiter import SecondTicketBucket
 
 PROMPT_RETRIES = 5
-RATE_LIMIT_RETRIES = 20
 BASE_RETRY_DELAY = 30  # seconds
 DEFAULT_THREAD_POOL_SIZE = 200
 TOKEN_UNIT_FOR_COST = 1000000
@@ -97,7 +98,12 @@ class LLMClientPromptStatus:
         self.prompt_id = prompt_id
         self.client_name = client_name
         self.start_time = time.time()
+        self.done_time = None
         self.state = PROMPT_STATE_WAITING_FOR_TICKET
+
+    def make_done(self, done_time):
+        self.done_time = done_time
+        self.state = PROMPT_STATE_DONE
 
 
 class LLMClientStatus:
@@ -129,7 +135,7 @@ class LLMClientStatus:
         return result
 
 
-class LLMClientStatusService:
+class LLMClientStatusService (SecondTicketBucketListener):
     _instance = None
     REPORT_INTERVAL = 2
 
@@ -157,42 +163,73 @@ class LLMClientStatusService:
         self.running = False
         self.timer.cancel()
 
+    def log_second_bucket(self, bucket: SecondTicketBucket):
+        new_requests = bucket.get_new_requests()
+        issued_ticket_list = bucket.get_issued_tickets()
+        rate_exception_list = bucket.get_new_rate_exceptions()
+        finished_request_list = bucket.get_finished_requests()
+        with self.status_lock:
+            for request in new_requests:
+                self.unsafe_start_prompt(request.user_request_id, request.model_name)
+            for request in issued_ticket_list:
+                self.unsafe_got_ticket(request.user_request_id, request.model_name)
+            for request in rate_exception_list:
+                self.unsafe_rate_limit_exceeded(request.user_request_id, request.model_name)
+            for request in finished_request_list:
+                self.unsafe_prompt_done(request.user_request_id, request.model_name)
+
     def start_prompt(self, prompt_id, client_name):
         with self.status_lock:
-            if client_name not in self.client_status_dict:
-                self.client_status_dict[client_name] = LLMClientStatus(client_name)
-            client_status = self.client_status_dict[client_name]
-            client_status.waiting_for_ticket += 1
-            prompt_status = LLMClientPromptStatus(prompt_id, client_name)
-            client_status.in_flight_prompt_dict[prompt_id] = prompt_status
+            self.unsafe_start_prompt(prompt_id, client_name)
+
+    def unsafe_start_prompt(self, prompt_id, client_name):
+        if client_name not in self.client_status_dict:
+            self.client_status_dict[client_name] = LLMClientStatus(client_name)
+        client_status = self.client_status_dict[client_name]
+        client_status.waiting_for_ticket += 1
+        prompt_status = LLMClientPromptStatus(prompt_id, client_name)
+        client_status.in_flight_prompt_dict[prompt_id] = prompt_status
 
     def rate_limit_exceeded(self, prompt_id, client_name):
         with self.status_lock:
-            client_status = self.client_status_dict[client_name]
-            client_status.waiting_for_ticket += 1
-            client_status.rate_limit_count += 1
-            prompt_status = client_status.in_flight_prompt_dict[prompt_id]
-            prompt_status.state = PROMPT_STATE_WAITING_FOR_TICKET
+            self.unsafe_rate_limit_exceeded(prompt_id, client_name)
+
+    def unsafe_rate_limit_exceeded(self, prompt_id, client_name):
+        client_status = self.client_status_dict[client_name]
+        client_status.waiting_for_ticket += 1
+        client_status.rate_limit_count += 1
+        prompt_status = client_status.in_flight_prompt_dict[prompt_id]
+        prompt_status.state = PROMPT_STATE_WAITING_FOR_TICKET
 
     def got_ticket(self, prompt_id, client_name):
         with self.status_lock:
-            client_status = self.client_status_dict[client_name]
-            client_status.waiting_for_ticket -= 1
-            prompt_status = client_status.in_flight_prompt_dict[prompt_id]
+            self.unsafe_got_ticket(prompt_id, client_name)
+
+    def unsafe_got_ticket(self, prompt_id, client_name):
+        client_status = self.client_status_dict[client_name]
+        client_status.waiting_for_ticket -= 1
+        prompt_status = client_status.in_flight_prompt_dict.get(prompt_id, None)
+        if prompt_status is not None:
             prompt_status.state = PROMPT_STATE_HAVE_TICKET
 
     def prompt_done(self, prompt_id, client_name):
         with self.status_lock:
-            client_status = self.client_status_dict[client_name]
-            client_status.completed_prompt_count += 1
-            del client_status.in_flight_prompt_dict[prompt_id]
+            self.unsafe_prompt_done(prompt_id, client_name)
+
+    def unsafe_prompt_done(self, prompt_id, client_name):
+        client_status = self.client_status_dict[client_name]
+        client_status.completed_prompt_count += 1
+        del client_status.in_flight_prompt_dict[prompt_id]
 
     def prompt_failed(self, prompt_id, client_name):
         with self.status_lock:
-            client_status = self.client_status_dict[client_name]
-            client_status.completed_prompt_count += 1
-            client_status.exception_count += 1
-            del client_status.in_flight_prompt_dict[prompt_id]
+            self.prompt_failed(prompt_id, client_name)
+
+    def unsafe_prompt_failed(self, prompt_id, client_name):
+        client_status = self.client_status_dict[client_name]
+        client_status.completed_prompt_count += 1
+        client_status.exception_count += 1
+        del client_status.in_flight_prompt_dict[prompt_id]
 
     def copy_status(self):
         with self.status_lock:
@@ -245,12 +282,6 @@ class LLMClientStatusService:
 def llm_client_prompt_status_service() -> LLMClientStatusService:
     result = LLMClientStatusService.get_instance()
     return result
-
-
-class LlmClientRateLimitException(Exception):
-    def __init__(self):
-        super().__init__("Rate limit exceeded")
-        self.status_code = 429
 
 
 class LlmClientJSONFormatException(Exception):
@@ -316,12 +347,15 @@ class LlmClient(RateLimitedService):
             result = True
         return result
 
+    def get_rate_limiter(self):
+        return self.rate_limiter
+
     def prompt(self, prompt_id, prompt_text, system_prompt=Nothing, json_output=False, temp=0.0,
                max_output=None) -> LlmClientResponse:
         result = None
-        llm_client_prompt_status_service().start_prompt(prompt_id, self.model_name)
-        ticket = self.rate_limiter.get_ticket()
-        llm_client_prompt_status_service().got_ticket(prompt_id, self.model_name)
+        #llm_client_prompt_status_service().start_prompt(prompt_id, self.model_name)
+        ticket = self.rate_limiter.get_ticket(prompt_id, self.model_name)
+        #llm_client_prompt_status_service().got_ticket(prompt_id, self.model_name)
         for attempt in range(RATE_LIMIT_RETRIES):
             try:
                 result = self.do_prompt(prompt_text, system_prompt, json_output, temp, max_output)
@@ -330,7 +364,7 @@ class LlmClient(RateLimitedService):
                     raise LlmClientRateLimitException()
                 else:
                     self.rate_limiter.return_ticket(ticket)
-                    llm_client_prompt_status_service().prompt_done(prompt_id, self.model_name)
+                    #llm_client_prompt_status_service().prompt_done(prompt_id, self.model_name)
                     break
             except RateLimitError as re:
                 ticket = self.wait_for_ticket_after_rate_limit_exceeded(prompt_id, ticket)
@@ -344,14 +378,44 @@ class LlmClient(RateLimitedService):
                     continue
                 else:
                     self.rate_limiter.return_ticket(ticket)
+                    #llm_client_prompt_status_service().prompt_failed(prompt_id, self.model_name)
+                    raise e
+        return result
+
+    @retry(wait=wait_exponential(multiplier=1, min=5, max=60))
+    def tenacity_prompt(self, prompt_id, prompt_text, system_prompt=Nothing, json_output=False, temp=0.0,
+               max_output=None) -> LlmClientResponse:
+        result = None
+        llm_client_prompt_status_service().start_prompt(prompt_id, self.model_name)
+        llm_client_prompt_status_service().got_ticket(prompt_id, self.model_name)
+        for attempt in range(RATE_LIMIT_RETRIES):
+            try:
+                result = self.do_prompt(prompt_text, system_prompt, json_output, temp, max_output)
+                if result is None or len(result.response_text) == 0:
+                    # some llms return empty result when the rate limit is exceeded, throw exception to retry
+                    raise LlmClientRateLimitException()
+                else:
+                    llm_client_prompt_status_service().prompt_done(prompt_id, self.model_name)
+                    break
+            except RateLimitError as re:
+                llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
+                raise TenacityRateLimitError()
+            except Exception as e:
+                if getattr(e, "status_code", None) is not None and e.status_code == 429:
+                    llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
+                    raise TenacityRateLimitError()
+                elif getattr(e, "code", None) is not None and e.code == 429:
+                    llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
+                    raise TenacityRateLimitError()
+                else:
                     llm_client_prompt_status_service().prompt_failed(prompt_id, self.model_name)
                     raise e
         return result
 
     def wait_for_ticket_after_rate_limit_exceeded(self, prompt_id, ticket):
-        llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
+        #llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
         ticket = self.rate_limiter.wait_for_ticket_after_rate_limit_exceeded(ticket)
-        llm_client_prompt_status_service().got_ticket(prompt_id, self.model_name)
+        #llm_client_prompt_status_service().got_ticket(prompt_id, self.model_name)
         return ticket
 
     def do_prompt(self, prompt_text, system_prompt=None, json_output=False, max_output=None, temp=0.0):
@@ -791,6 +855,7 @@ def init_llm_clients(data_directory="data"):
     status_service = LLMClientStatusService()
     status_service.start()
     add_service_to_stop(status_service)
+    RateLlmiterMonitor.get_instance().add_listener(status_service)
     RateLlmiterMonitor.get_instance().start()
     add_service_to_stop(RateLlmiterMonitor.get_instance())
     return clients_with_keys

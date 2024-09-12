@@ -14,6 +14,7 @@
 #  OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 import copy
 import datetime
+import functools
 import json
 import os
 import threading
@@ -21,12 +22,18 @@ import time
 from pathlib import Path
 from queue import Queue, Empty
 import matplotlib.pyplot as plt
+from fireworks.client.error import RateLimitError
 
 MIN_TEST_IF_SERVICE_RESUMED_INTERVAL = 10
 MAX_TEST_IF_SERVICE_RESUMED_INTERVAL = 65
 INTERVAL_BACKOFF_RATE = 1.5
+RATE_LIMIT_RETRIES = 20
 
 
+class LlmClientRateLimitException(Exception):
+    def __init__(self):
+        super().__init__("Rate limit exceeded")
+        self.status_code = 429
 
 
 # For graph names, model name can include / characters, so we need to sanitize the name
@@ -66,12 +73,16 @@ class RateLimitedEvent:
 
 
 class RateLlmiterTicket:
-    def __init__(self, request_id:int, initial_request_second_bucket_id: int, issued_ticket: int= None,
-                 issued_second_bucket_id: int = None, rate_limit_event_list: [RateLimitedEvent] = None):
+    def __init__(self, request_id:int, initial_request_second_bucket_id: int, user_request_id: str, model_name: str,
+                 issued_ticket: int= None, issued_second_bucket_id: int = None,
+                 rate_limit_event_list: [RateLimitedEvent] = None, finished_second_bucket_id: int = None):
         self.request_id = request_id
         self.initial_request_second_bucket_id = initial_request_second_bucket_id
+        self.user_request_id = user_request_id
+        self.model_name = model_name
         self.issued_ticket = issued_ticket
         self.issued_second_bucket_id = issued_second_bucket_id
+        self.finished_second_bucket_id = finished_second_bucket_id
         self.rate_limit_event_list = rate_limit_event_list if rate_limit_event_list is not None else []
 
     def has_issued_ticket(self):
@@ -90,6 +101,15 @@ class RateLlmiterTicket:
 
     def resolve_rate_limited_event(self, second_bucket_id):
         self.rate_limit_event_list[-1].reissued_second_bucket_id = second_bucket_id
+
+    def get_last_rate_limited_event(self):
+        result = None
+        if len(self.rate_limit_event_list) > 0:
+            result = self.rate_limit_event_list[-1]
+        return result
+
+    def finish_request(self, second_bucket_id):
+        self.finished_second_bucket_id = second_bucket_id
 
     def to_dict(self):
         result = copy.deepcopy(vars(self))
@@ -134,8 +154,33 @@ class SecondTicketBucket:
         self.rate_limited_request_list: [RateLlmiterTicket] = rate_limited_request_list if rate_limited_request_list is not None else []
         self.finished_ticket_list: [RateLlmiterTicket] = finished_ticket_list if finished_ticket_list is not None else []
 
-    def get_ticket(self, request_id: int):
-        result = RateLlmiterTicket(request_id, self.second_bucket_id)
+    def get_new_requests(self):
+        result = []
+        for ticket in self.overflow_request_list:
+            if ticket.initial_request_second_bucket_id == self.second_bucket_id:
+                result.append(copy.deepcopy(ticket))
+        for ticket in self.issued_ticket_list:
+            if ticket.initial_request_second_bucket_id == self.second_bucket_id:
+                result.append(copy.deepcopy(ticket))
+        return result
+
+    def get_issued_tickets(self):
+        result = copy.deepcopy(self.issued_ticket_list)
+        return result
+
+    def get_new_rate_exceptions(self):
+        result = []
+        for ticket in self.rate_limited_request_list:
+            if ticket.get_last_rate_limited_event().second_bucket_ticket_was_limited == self.second_bucket_id:
+                result.append(copy.deepcopy(ticket))
+        return result
+
+    def get_finished_requests(self):
+        result = copy.deepcopy(self.finished_ticket_list)
+        return result
+
+    def get_ticket(self, request_id: int, user_request_id: str, model_name: str) -> RateLlmiterTicket:
+        result = RateLlmiterTicket(request_id, self.second_bucket_id, user_request_id, model_name)
         self.second_requested_ticket_count += 1
         self.process_ticket_request(result)
         if result.has_issued_ticket() is False:
@@ -143,6 +188,7 @@ class SecondTicketBucket:
         return result
 
     def finish_request(self, ticket: RateLlmiterTicket):
+        ticket.finish_request(self.second_bucket_id)
         self.finished_ticket_list.append(ticket)
 
     def had_activity(self):
@@ -239,12 +285,15 @@ class MinuteTicketBucket:
             next_start_time += 1
         self.second_bucket_list[0].ticket_count = first_bucket_ticket_count
 
+    def get_current_second_bucket(self):
+        return self.second_bucket_list[self.current_second_bucket_index]
+
     def get_last_bucket_ticket_used_count(self):
         result = self.second_bucket_list[self.current_second_bucket_index].get_issued_ticket_count()
         return result
 
-    def get_ticket(self, request_id) -> RateLlmiterTicket:
-        result = self.second_bucket_list[self.current_second_bucket_index].get_ticket(request_id)
+    def get_ticket(self, request_id, user_request_id, model_name) -> RateLlmiterTicket:
+        result = self.second_bucket_list[self.current_second_bucket_index].get_ticket(request_id, user_request_id, model_name)
         self.minute_requested_ticket_count += 1
         return result
 
@@ -337,6 +386,9 @@ class BucketRateLimiter:
     def get_rate_limited_service_name(self):
         return self.rate_limited_service_name
 
+    def get_number_of_retries(self):
+        return RATE_LIMIT_RETRIES
+
     def get_current_minute_bucket(self):
         return self.thread_safe_data.current_minute_bucket
 
@@ -373,6 +425,7 @@ class BucketRateLimiter:
 
     def release_tickets(self):
         with self.thread_safe_data.lock:
+            last_second_bucket = self.thread_safe_data.current_minute_bucket.get_current_second_bucket()
             if self.thread_safe_data.is_paused_by_rate_limit_exception:
                 self.thread_safe_data.current_minute_bucket.advance_second_bucket(False)
             else:
@@ -380,12 +433,13 @@ class BucketRateLimiter:
             released_ticket_list = self.thread_safe_data.current_minute_bucket.release_tickets()
         for ticket in released_ticket_list:
             self.resume_request(ticket)
+        return last_second_bucket
 
-    def get_ticket(self):
+    def get_ticket(self, user_request_id=None, model_name=None):
         with self.thread_safe_data.lock:
             request_id = self.thread_safe_data.next_request_index
             self.thread_safe_data.next_request_index += 1
-            ticket = self.thread_safe_data.current_minute_bucket.get_ticket(request_id)
+            ticket = self.thread_safe_data.current_minute_bucket.get_ticket(request_id, user_request_id, model_name)
         if ticket.has_issued_ticket() is False:
             ticket = self.wait(ticket)
         return ticket
@@ -498,7 +552,7 @@ class RateLlmiterGraph:
         plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: format(int(x), ',')))
 
         # Set x-axis properties
-        plt.xlim(0, len(self.tickets_issued_count_list) - 1)
+        plt.xlim(-1, len(self.tickets_issued_count_list) - 1)
         max_x = len(self.tickets_issued_count_list) - 1
         ticks = [int(i * max_x / 4) for i in range(5)]
         ticks[-1] = max_x  # Ensure the last tick is always the last index
@@ -519,6 +573,13 @@ class RateLlmiterGraph:
 
 
         plt.legend(loc='upper right', bbox_to_anchor=(1, 1), frameon=True, fontsize=6)
+
+        # Add a watermark
+        plt.text(0.5, 0.9, 'rateLLMiter.ai',
+                 fontsize=40, color='gray',
+                 ha='center', va='center',
+                 alpha=0.1, rotation=0,
+                 transform=plt.gca().transAxes)
 
         plt.tight_layout()
         plt.savefig(plot_file_name, dpi=300)
@@ -610,6 +671,10 @@ class CompareModelsGraph:
         plt.close()
 
 
+class SecondTicketBucketListener:
+    def log_second_bucket(self, bucket: SecondTicketBucket):
+        raise NotImplementedError
+
 class RateLlmiterMonitor:
     _instance = None
 
@@ -621,6 +686,7 @@ class RateLlmiterMonitor:
         self.log_directory = None
         self.active_rate_limiter_dict = {}
         self.timer = None
+        self.listener_list = []
 
     def start(self):
         time_in_seconds = int(time.time())
@@ -631,6 +697,16 @@ class RateLlmiterMonitor:
         self.timer = threading.Timer(interval=1, function=self.add_tickets)
         self.timer.start()
 
+    def add_listener(self, listener: SecondTicketBucketListener):
+        self.listener_list.append(listener)
+
+    def send_bucket_to_listeners(self, bucket: SecondTicketBucket):
+        for listener in self.listener_list:
+            try:
+                listener.log_second_bucket(bucket)
+            except Exception as e:
+                print(f"listener error: {e}")
+
     def stop(self):
         if self.timer is not None:
             buckets_to_log = []
@@ -640,7 +716,6 @@ class RateLlmiterMonitor:
             self.timer.cancel()
 
     def add_rate_limiter(self, rate_limiter):
-        rate_limiter.refresh_minute_bucket(self.start_time_in_seconds, self.start_iso_date_string)
         self.rate_limiter_list.append(rate_limiter)
 
     def set_log_directory(self, log_directory: str):
@@ -659,7 +734,8 @@ class RateLlmiterMonitor:
                 if last_bucket is not None:
                     buckets_to_log.append(last_bucket)
             else:
-                rate_limiter.release_tickets()
+                last_second_bucket = rate_limiter.release_tickets()
+                self.send_bucket_to_listeners(last_second_bucket)
         self.second_bucket_index += 1
         self.write_buckets_to_log(buckets_to_log)
         self.timer = threading.Timer(interval=1, function=self.add_tickets)
@@ -676,6 +752,7 @@ class RateLlmiterMonitor:
                     if bucket.minute_requested_ticket_count > 0 or bucket.rate_limiter_name in self.active_rate_limiter_dict:
                         self.active_rate_limiter_dict[bucket.rate_limiter_name] = True
                         file.write(bucket.to_json() + "\n")
+                        self.send_bucket_to_listeners(bucket.get_current_second_bucket())
 
     def load_session_file(self, file_name, model_name):
         if file_name is None:
@@ -720,3 +797,48 @@ class RateLlmiterMonitor:
             RateLlmiterMonitor._instance = RateLlmiterMonitor()
         return RateLlmiterMonitor._instance
 
+
+def ratellmiter(rate_limiter=None, user_request_id_arg=None, model_name_arg=None):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            nonlocal rate_limiter
+            if rate_limiter is None:
+                rate_limiter = self.get_rate_limiter()
+            if rate_limiter is None:
+                return func(self, *args, **kwargs)
+            user_request_id=None
+            model_name=None
+            if user_request_id_arg is not None:
+                user_request_id = kwargs.get(user_request_id_arg)
+            if model_name_arg is not None:
+                model_name = kwargs.get(model_name_arg)
+            number_of_retries = rate_limiter.get_number_of_retries()
+            ticket = None  # Initialize ticket variable
+
+            for attempt in range(number_of_retries):
+                try:
+                    ticket = rate_limiter.get_ticket(user_request_id, model_name)  # Get initial ticket
+                    result = func(self, *args, **kwargs)
+                    if result is None:
+                        raise LlmClientRateLimitException()
+                    else:
+                        rate_limiter.return_ticket(ticket)
+                        break
+                except RateLimitError as re:
+                    ticket = rate_limiter.wait_for_ticket_after_rate_limit_exceeded(ticket)
+                    continue
+                except Exception as e:
+                    if getattr(e, "status_code", None) is not None and (e.status_code == 429 or e.status_code == 529):
+                        ticket = rate_limiter.wait_for_ticket_after_rate_limit_exceeded(ticket)
+                        continue
+                    elif getattr(e, "code", None) is not None and (e.code == 429 or e.code == 529):
+                        ticket = rate_limiter.wait_for_ticket_after_rate_limit_exceeded(ticket)
+                        continue
+                    else:
+                        rate_limiter.return_ticket(ticket)
+                        raise e
+            return result
+
+        return wrapper
+        return decorator
