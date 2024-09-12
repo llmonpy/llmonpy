@@ -37,7 +37,7 @@ from together import Together
 
 from llmonpy.llmonpy_util import fix_common_json_encoding_errors
 from llmonpy.rate_llmiter import RateLimitedService, BucketRateLimiter, RateLlmiterMonitor, SecondTicketBucketListener, \
-    RATE_LIMIT_RETRIES, LlmClientRateLimitException
+    RATE_LIMIT_RETRIES, LlmClientRateLimitException, ratellmiter
 from llmonpy.system_services import add_service_to_stop
 from rate_llmiter import SecondTicketBucket
 
@@ -353,33 +353,15 @@ class LlmClient(RateLimitedService):
     def prompt(self, prompt_id, prompt_text, system_prompt=Nothing, json_output=False, temp=0.0,
                max_output=None) -> LlmClientResponse:
         result = None
-        #llm_client_prompt_status_service().start_prompt(prompt_id, self.model_name)
-        ticket = self.rate_limiter.get_ticket(prompt_id, self.model_name)
-        #llm_client_prompt_status_service().got_ticket(prompt_id, self.model_name)
-        for attempt in range(RATE_LIMIT_RETRIES):
-            try:
-                result = self.do_prompt(prompt_text, system_prompt, json_output, temp, max_output)
-                if result is None or len(result.response_text) == 0:
-                    # some llms return empty result when the rate limit is exceeded, throw exception to retry
-                    raise LlmClientRateLimitException()
-                else:
-                    self.rate_limiter.return_ticket(ticket)
-                    #llm_client_prompt_status_service().prompt_done(prompt_id, self.model_name)
-                    break
-            except RateLimitError as re:
-                ticket = self.wait_for_ticket_after_rate_limit_exceeded(prompt_id, ticket)
-                continue
-            except Exception as e:
-                if getattr(e, "status_code", None) is not None and (e.status_code == 429 or e.status_code == 529):
-                    ticket = self.wait_for_ticket_after_rate_limit_exceeded(prompt_id, ticket)
-                    continue
-                elif getattr(e, "code", None) is not None and (e.code == 429 or e.code == 529):
-                    ticket = self.wait_for_ticket_after_rate_limit_exceeded(prompt_id, ticket)
-                    continue
-                else:
-                    self.rate_limiter.return_ticket(ticket)
-                    #llm_client_prompt_status_service().prompt_failed(prompt_id, self.model_name)
-                    raise e
+        result = self.rate_llmiter_prompt(prompt_text, system_prompt, json_output, temp, max_output,
+                                         model_name_for_logging=self.model_name, user_request_id=prompt_id)
+        return result
+
+    @ratellmiter(user_request_id_arg="user_request_id", model_name_arg="model_name_for_logging")
+    def rate_llmiter_prompt(self, prompt_text, system_prompt=Nothing, json_output=False, temp=0.0,
+               max_output=None, user_request_id=None, model_name_for_logging=None) -> LlmClientResponse:
+        result = None
+        result = self.do_prompt(prompt_text, system_prompt, json_output, temp, max_output)
         return result
 
     @retry(wait=wait_exponential(multiplier=1, min=5, max=60))

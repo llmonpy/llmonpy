@@ -798,13 +798,11 @@ class RateLlmiterMonitor:
         return RateLlmiterMonitor._instance
 
 
-def ratellmiter(rate_limiter=None, user_request_id_arg=None, model_name_arg=None):
+def ratellmiter(user_request_id_arg=None, model_name_arg=None):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
-            nonlocal rate_limiter
-            if rate_limiter is None:
-                rate_limiter = self.get_rate_limiter()
+            rate_limiter = self.get_rate_limiter()
             if rate_limiter is None:
                 return func(self, *args, **kwargs)
             user_request_id=None
@@ -839,6 +837,5 @@ def ratellmiter(rate_limiter=None, user_request_id_arg=None, model_name_arg=None
                         rate_limiter.return_ticket(ticket)
                         raise e
             return result
-
         return wrapper
-        return decorator
+    return decorator
