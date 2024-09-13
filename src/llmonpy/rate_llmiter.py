@@ -20,7 +20,6 @@ import os
 import threading
 import time
 from pathlib import Path
-from queue import Queue, Empty
 import matplotlib.pyplot as plt
 from fireworks.client.error import RateLimitError
 

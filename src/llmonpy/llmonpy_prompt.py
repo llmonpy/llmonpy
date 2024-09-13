@@ -18,7 +18,6 @@ import random
 import time
 
 from jinja2 import Template
-from nothingpy import Nothing
 
 from llmonpy.llmonpy_step import *
 from llmonpy.llm_client import LlmClient
@@ -131,7 +130,7 @@ class LLMonPyPromptRunner(LLMonPyStep):
         result = None
         for i in range(0, 3):
             try:
-                response = self.get_llm_client().prompt(self.get_step_id(), prompt_text, Nothing, self.prompt.get_json_output(),
+                response = self.get_llm_client().tenacity_prompt(self.get_step_id(), prompt_text, None, self.prompt.get_json_output(),
                                                   self.llm_model_info.get_temp())
                 recorder.record_cost(response.get_response_cost())
                 recorder.log_prompt_response(prompt_text, response.response_text)

@@ -6,7 +6,7 @@ import sys
 
 from llmonpy.llm_client import GPT4omini, GEMINI_FLASH, FIREWORKS_MYTHOMAXL2_13B, FIREWORKS_LLAMA3_1_8B, \
     ANTHROPIC_HAIKU, MISTRAL_7B, GPT4o, ANTHROPIC_SONNET, GEMINI_PRO, FIREWORKS_LLAMA3_1_405B, MISTRAL_NEMO_12B, GPT3_5, \
-    MISTRAL_LARGE
+    MISTRAL_LARGE, AI21_JAMBA_1_5_MINI
 from llmonpy.llmon_pypeline import LLMonPypeline
 from llmonpy.llmonpy_prompt import LLMonPyPrompt, create_prompt_steps
 from llmonpy.llmonpy_step import LLMonPyStepOutput, LLMONPY_OUTPUT_FORMAT_TEXT, TraceLogRecorderInterface, \
@@ -411,6 +411,7 @@ ALL_SMALL_MODEL_JUDGE_LIST = [ANTHROPIC_HAIKU, GPT4omini, GEMINI_FLASH, FIREWORK
 LARGE_MODEL_JUDGE_LIST = [GPT4o, ANTHROPIC_SONNET, FIREWORKS_LLAMA3_1_405B, GEMINI_FLASH, MISTRAL_LARGE]
 MIXED_MODEL_LIST_1 = [ANTHROPIC_HAIKU, GPT4omini, GEMINI_FLASH, GPT4o, ANTHROPIC_SONNET]
 MIXED_MODEL_LIST_2 = [ANTHROPIC_HAIKU, GPT4omini, GEMINI_FLASH, FIREWORKS_LLAMA3_1_8B, FIREWORKS_MYTHOMAXL2_13B, MISTRAL_7B, GPT3_5, GEMINI_PRO, GPT4o, ANTHROPIC_SONNET, MISTRAL_LARGE]
+ALT_FIVE_SMALL_MODEL_JUDGE_LIST =[ANTHROPIC_HAIKU, MISTRAL_NEMO_12B, GEMINI_FLASH, FIREWORKS_LLAMA3_1_8B, GPT4omini]
 
 
 if __name__ == "__main__":
@@ -420,8 +421,8 @@ if __name__ == "__main__":
         if len(sys.argv) >= 2:
             cola_file_path = sys.argv[1]
         cola_test_list = ColaTestData.read_from_file(cola_file_path)
-        model_info_list = make_model_list(ModelTemp(FIVE_SMALL_MODEL_JUDGE_LIST, [0.0]))
-        subset = cola_test_list[:100]
+        model_info_list = make_model_list(ModelTemp(ALT_FIVE_SMALL_MODEL_JUDGE_LIST, [0.0]))
+        subset = cola_test_list[:2]
         cola_pipeline_step = ColaPypeLine(subset, model_info_list).create_step(None)
         cola_pipeline_step.record_step()
         response_list = cola_pipeline_step.get_step_output().response_list
