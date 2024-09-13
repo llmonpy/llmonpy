@@ -144,10 +144,12 @@ class LLMClientStatusService (SecondTicketBucketListener):
             cls._instance = super(LLMClientStatusService, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self, log_directory=None):
         self.client_status_dict = {}
         self.status_lock = threading.Lock()
         self.timer = threading.Timer(interval=LLMClientStatusService.REPORT_INTERVAL, function=self.report_status)
+        self.completion_time_list: [float] = []
+        self.log_directory = log_directory
         self.running = False
 
     def start(self):
@@ -162,6 +164,30 @@ class LLMClientStatusService (SecondTicketBucketListener):
     def stop(self):
         self.running = False
         self.timer.cancel()
+        if self.log_directory is not None:
+            self.write_completion_times()
+
+    def write_completion_times(self):
+        if len(self.completion_time_list) > 0:
+            second_offset_list = []
+            first_time = self.completion_time_list[0]
+            for time_in_seconds in self.completion_time_list:
+                second_index = int(time_in_seconds - first_time)
+                second_offset_list.append(second_index)
+            max_offset = second_offset_list[len(second_offset_list) - 1]
+            second_count_dict = {}
+            for second in second_offset_list:
+                if second not in second_count_dict:
+                    second_count_dict[second] = 1
+                else:
+                    second_count_dict[second] += 1
+            second_count_list = []
+            for i in range(max_offset):
+                count = second_count_dict.get(i, 0)
+                second_count_list.append(count)
+            csv_string = ",".join([str(x) for x in second_count_list])
+            with open(self.log_directory + "/second_request_counts.csv", "w") as file:
+                file.write(csv_string)
 
     def log_second_bucket(self, bucket: SecondTicketBucket):
         new_requests = bucket.get_new_requests()
@@ -177,6 +203,7 @@ class LLMClientStatusService (SecondTicketBucketListener):
                 self.unsafe_rate_limit_exceeded(request.user_request_id, request.model_name)
             for request in finished_request_list:
                 self.unsafe_prompt_done(request.user_request_id, request.model_name)
+                self.completion_time_list.append(request.finished_second_bucket_id)
 
     def start_prompt(self, prompt_id, client_name):
         with self.status_lock:
@@ -213,8 +240,10 @@ class LLMClientStatusService (SecondTicketBucketListener):
             prompt_status.state = PROMPT_STATE_HAVE_TICKET
 
     def prompt_done(self, prompt_id, client_name):
+        current_time = time.time()
         with self.status_lock:
             self.unsafe_prompt_done(prompt_id, client_name)
+            self.completion_time_list.append(current_time)
 
     def unsafe_prompt_done(self, prompt_id, client_name):
         client_status = self.client_status_dict[client_name]
@@ -834,7 +863,7 @@ def init_llm_clients(data_directory="data"):
             continue
     for key in missing_key_map:
         print("No key found for " + key)
-    status_service = LLMClientStatusService()
+    status_service = LLMClientStatusService(log_directory)
     status_service.start()
     add_service_to_stop(status_service)
     RateLlmiterMonitor.get_instance().add_listener(status_service)
