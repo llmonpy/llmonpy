@@ -17,7 +17,6 @@ dependencies = [
     "fireworks-ai",
     "together",
     "groq",
-    "nothingpy",
     "jinja2",
     "flask",
     "flask_cors",
