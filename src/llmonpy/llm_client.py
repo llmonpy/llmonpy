@@ -33,14 +33,13 @@ from groq import Groq
 from mistralai import Mistral
 from openai import OpenAI
 import google.generativeai as genai
-from tenacity import retry, wait_exponential
 from together import Together
 
 from llmonpy.llmonpy_util import fix_common_json_encoding_errors
 from llmonpy.rate_llmiter import RateLimitedService, BucketRateLimiter, RateLlmiterMonitor, SecondTicketBucketListener, \
     RATE_LIMIT_RETRIES, LlmClientRateLimitException, ratellmiter
 from llmonpy.system_services import add_service_to_stop
-from rate_llmiter import SecondTicketBucket
+from llmonpy.rate_llmiter import SecondTicketBucket
 
 PROMPT_RETRIES = 5
 BASE_RETRY_DELAY = 30  # seconds
@@ -379,7 +378,7 @@ class LlmClient(RateLimitedService):
             result = True
         return result
 
-    def get_rate_limiter(self, model_name: str = None):
+    def get_ratellmiter(self, model_name: str = None):
         return self.rate_limiter
 
     def prompt(self, prompt_id, prompt_text, system_prompt=None, json_output=False, temp=0.0,
@@ -398,7 +397,8 @@ class LlmClient(RateLimitedService):
             raise LlmClientRateLimitException()
         return result
 
-    @retry(wait=wait_exponential(multiplier=1, min=5, max=60))
+    """    
+    @retry(wait=wait_exponential(multiplier=1, min=5, max=15))
     def tenacity_prompt(self, prompt_id, prompt_text, system_prompt=None, json_output=False, temp=0.0,
                max_output=None) -> LlmClientResponse:
         result = None
@@ -407,6 +407,7 @@ class LlmClient(RateLimitedService):
         result = self.do_prompt(prompt_text, system_prompt, json_output, temp, max_output)
         llm_client_prompt_status_service().prompt_done(prompt_id, self.model_name)
         return result
+    """
 
     def wait_for_ticket_after_rate_limit_exceeded(self, prompt_id, ticket):
         #llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
@@ -879,7 +880,6 @@ ACTIVE_LLM_CLIENT_DICT = {}
 
 def init_llm_clients(data_directory="data"):
     log_directory = os.path.join(data_directory, "rate_llmiter_logs")
-    RateLlmiterMonitor.get_instance().set_log_directory(log_directory)
     client_list = LlmClient.get_all_clients()
     clients_with_keys = []
     missing_key_map = {}
@@ -897,7 +897,7 @@ def init_llm_clients(data_directory="data"):
     status_service.start()
     add_service_to_stop(status_service)
     RateLlmiterMonitor.get_instance().add_listener(status_service)
-    RateLlmiterMonitor.get_instance().start()
+    RateLlmiterMonitor.get_instance().start(log_directory=log_directory)
     add_service_to_stop(RateLlmiterMonitor.get_instance())
     return clients_with_keys
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llmonpy"
-version = "0.1.30"
+version = "0.1.33"
 authors = [{ name="Tom Burns", email="public@llmonpy.ai" }]
 description = "AI pipeline framework for Python."
 readme = "README.md"
@@ -12,11 +12,12 @@ license = { file = "LICENSE" }
 dependencies = [
     "google-generativeai",
     "openai",
-    "mistralai",
+    "mistralai>=1.0",
     "anthropic",
     "fireworks-ai",
     "together",
     "groq",
+    "ai21",
     "jinja2",
     "flask",
     "flask_cors",

@@ -422,7 +422,7 @@ if __name__ == "__main__":
             cola_file_path = sys.argv[1]
         cola_test_list = ColaTestData.read_from_file(cola_file_path)
         model_info_list = make_model_list(ModelTemp(ALT_FIVE_SMALL_MODEL_JUDGE_LIST, [0.0]))
-        subset = cola_test_list[:2]
+        subset = cola_test_list[:100]
         cola_pipeline_step = ColaPypeLine(subset, model_info_list).create_step(None)
         cola_pipeline_step.record_step()
         response_list = cola_pipeline_step.get_step_output().response_list

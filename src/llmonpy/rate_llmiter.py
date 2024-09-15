@@ -48,7 +48,7 @@ class RateLimitedService:
     def get_service_name(self) -> str:
         raise NotImplementedError
 
-    def get_rate_limiter(self, model_name: str=None) -> 'BucketRateLimiter':
+    def get_ratellmiter(self, model_name: str=None) -> 'BucketRateLimiter':
         raise NotImplementedError
 
 class RateLimitedEvent:
@@ -690,7 +690,9 @@ class RateLlmiterMonitor:
         self.timer = None
         self.listener_list = []
 
-    def start(self):
+    def start(self, log_directory: str = None):
+        if log_directory is not None:
+            self.set_log_directory(log_directory)
         time_in_seconds = int(time.time())
         iso_date_string = datetime.datetime.fromtimestamp(time_in_seconds).isoformat()
         for rate_limiter in self.rate_limiter_list:
@@ -810,7 +812,7 @@ def ratellmiter(user_request_id_arg=None, model_name_arg=None):
                 user_request_id = kwargs.get(user_request_id_arg)
             if model_name_arg is not None:
                 model_name = kwargs.get(model_name_arg)
-            rate_limiter = self.get_rate_limiter(model_name)
+            rate_limiter = self.get_ratellmiter(model_name)
             if rate_limiter is None:
                 return func(self, *args, **kwargs)
             number_of_retries = rate_limiter.get_number_of_retries()
