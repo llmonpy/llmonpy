@@ -42,13 +42,14 @@ def sanitize_file_name(file_name):
 
 
 class RateLimitedService:
-    def test_if_blocked(self) -> bool:
+    def ratellmiter_is_llm_blocked(self) -> bool:
         raise NotImplementedError
 
     def get_service_name(self) -> str:
         raise NotImplementedError
 
-
+    def get_rate_limiter(self, model_name: str=None) -> 'BucketRateLimiter':
+        raise NotImplementedError
 
 class RateLimitedEvent:
     def __init__(self, second_bucket_ticket_was_issued: int, second_bucket_ticket_was_limited: int,
@@ -357,14 +358,16 @@ class BucketRateLimiterLock:
 
 
 class BucketRateLimiter:
-    def __init__(self, request_per_minute, tokens_per_minute, rate_limited_service_name:str=None, rate_limited_service: RateLimitedService = None):
+    def __init__(self, request_per_minute, rate_limited_service_name:str=None, rate_limited_service: RateLimitedService = None):
         self.request_per_minute = request_per_minute
-        self.tokens_per_minute = tokens_per_minute
         self.rate_limited_service = rate_limited_service
         # can not just ask service for name because some services use one rate limiter for many models
         self.rate_limited_service_name = rate_limited_service_name
         if rate_limited_service is not None and rate_limited_service_name is None:
-            self.rate_limited_service_name = rate_limited_service.get_service_name()
+            try:
+                self.rate_limited_service_name = rate_limited_service.get_service_name()
+            except Exception as e:
+                self.rate_limited_service_name = "unknown"
         if request_per_minute < 60: # this isn't optimal, but don't really care about this use case
             self.start_ramp_ticket_count = 1
             self.max_tickets_per_second = 1
@@ -473,7 +476,7 @@ class BucketRateLimiter:
     def test_if_service_resumed(self):
         current_time = int(time.time())
         print("testing if blocked at: ", current_time)
-        blocked = self.rate_limited_service.test_if_blocked()
+        blocked = self.rate_limited_service.ratellmiter_is_llm_blocked()
         if blocked:
             self.thread_safe_data.service_test_interval = min(
                 self.thread_safe_data.service_test_interval * INTERVAL_BACKOFF_RATE,
@@ -801,15 +804,15 @@ def ratellmiter(user_request_id_arg=None, model_name_arg=None):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
-            rate_limiter = self.get_rate_limiter()
-            if rate_limiter is None:
-                return func(self, *args, **kwargs)
-            user_request_id=None
-            model_name=None
+            user_request_id = None
+            model_name = None
             if user_request_id_arg is not None:
                 user_request_id = kwargs.get(user_request_id_arg)
             if model_name_arg is not None:
                 model_name = kwargs.get(model_name_arg)
+            rate_limiter = self.get_rate_limiter(model_name)
+            if rate_limiter is None:
+                return func(self, *args, **kwargs)
             number_of_retries = rate_limiter.get_number_of_retries()
             ticket = None  # Initialize ticket variable
 
@@ -838,3 +841,7 @@ def ratellmiter(user_request_id_arg=None, model_name_arg=None):
             return result
         return wrapper
     return decorator
+
+
+def get_rate_limiter_monitor() -> RateLlmiterMonitor:
+    return RateLlmiterMonitor.get_instance()

@@ -4,8 +4,7 @@ import sys
 import traceback
 
 from llmonpy.llm_client import get_active_llm_clients, MISTRAL_7B, GPT4omini, FIREWORKS_LLAMA3_1_8B, \
-    FIREWORKS_MYTHOMAXL2_13B, FIREWORKS_GEMMA2_9B, FIREWORKS_LLAMA3_1_405B, FIREWORKS_LLAMA3_1_70B, GPT4o, GPT3_5, \
-    get_rate_limiter_monitor
+    FIREWORKS_MYTHOMAXL2_13B, FIREWORKS_GEMMA2_9B, FIREWORKS_LLAMA3_1_405B, FIREWORKS_LLAMA3_1_70B, GPT4o, GPT3_5
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
 from llmonpy.llmonpy_execute import run_step
 from llmonpy.llmonpy_prompt import LLMonPyPromptRunner
@@ -15,7 +14,7 @@ from llmonpy.example.test_tourney import GenerateNamePypeline
 from llmonpy.llmonpy_step import LlmModelInfo, make_model_list, ModelTemp
 from llmonpy.example.test_gar import GenerateNameGar
 from llmonpy.trace_log import trace_log_service
-from llmonpy.rate_llmiter import RateLlmiterMonitor
+from llmonpy.rate_llmiter import RateLlmiterMonitor, get_rate_limiter_monitor
 
 
 def llmonpy_cli():

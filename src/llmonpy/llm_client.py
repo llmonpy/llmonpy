@@ -58,10 +58,10 @@ FIREWORKS_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAUL
 TOMBU_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 AI21_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 GROQ_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
-MISTRAL_RATE_LIMITER = BucketRateLimiter(180, 20000000, "MISTRAL")
-FIREWORKS_RATE_LIMITER = BucketRateLimiter(300, 20000000, "FIREWORKS")
-TOMBU_RATE_LIMITER = BucketRateLimiter(1200, 20000000, "TOMBU_FIREWORKS")
-AI21_RATE_LIMITER = BucketRateLimiter(60, 20000000, "AI21")
+MISTRAL_RATE_LIMITER = BucketRateLimiter(180, "MISTRAL")
+FIREWORKS_RATE_LIMITER = BucketRateLimiter(300, "FIREWORKS")
+TOMBU_RATE_LIMITER = BucketRateLimiter(1200, "TOMBU_FIREWORKS")
+AI21_RATE_LIMITER = BucketRateLimiter(60,  "AI21")
 
 
 class LLMonPyNoKeyForApiException(Exception):
@@ -365,7 +365,7 @@ class LlmClient(RateLimitedService):
     def get_model_name(self):
         return self.model_name
 
-    def test_if_blocked(self):
+    def ratellmiter_is_llm_blocked(self):
         result = True
         print("Testing if blocked")
         try:
@@ -379,7 +379,7 @@ class LlmClient(RateLimitedService):
             result = True
         return result
 
-    def get_rate_limiter(self):
+    def get_rate_limiter(self, model_name: str = None):
         return self.rate_limiter
 
     def prompt(self, prompt_id, prompt_text, system_prompt=None, json_output=False, temp=0.0,
@@ -394,6 +394,8 @@ class LlmClient(RateLimitedService):
                max_output=None, user_request_id=None, model_name_for_logging=None) -> LlmClientResponse:
         result = None
         result = self.do_prompt(prompt_text, system_prompt, json_output, temp, max_output)
+        if result is None:
+            raise LlmClientRateLimitException()
         return result
 
     @retry(wait=wait_exponential(multiplier=1, min=5, max=60))
@@ -402,28 +404,8 @@ class LlmClient(RateLimitedService):
         result = None
         llm_client_prompt_status_service().start_prompt(prompt_id, self.model_name)
         llm_client_prompt_status_service().got_ticket(prompt_id, self.model_name)
-        for attempt in range(RATE_LIMIT_RETRIES):
-            try:
-                result = self.do_prompt(prompt_text, system_prompt, json_output, temp, max_output)
-                if result is None or len(result.response_text) == 0:
-                    # some llms return empty result when the rate limit is exceeded, throw exception to retry
-                    raise LlmClientRateLimitException()
-                else:
-                    llm_client_prompt_status_service().prompt_done(prompt_id, self.model_name)
-                    break
-            except RateLimitError as re:
-                llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
-                raise TenacityRateLimitError()
-            except Exception as e:
-                if getattr(e, "status_code", None) is not None and e.status_code == 429:
-                    llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
-                    raise TenacityRateLimitError()
-                elif getattr(e, "code", None) is not None and e.code == 429:
-                    llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
-                    raise TenacityRateLimitError()
-                else:
-                    llm_client_prompt_status_service().prompt_failed(prompt_id, self.model_name)
-                    raise e
+        result = self.do_prompt(prompt_text, system_prompt, json_output, temp, max_output)
+        llm_client_prompt_status_service().prompt_done(prompt_id, self.model_name)
         return result
 
     def wait_for_ticket_after_rate_limit_exceeded(self, prompt_id, ticket):
@@ -853,19 +835,19 @@ MISTRAL_8X22B = MistralLlmClient("open-mixtral-8x22b", 8000, MISTRAL_RATE_LIMITE
 MISTRAL_SMALL = MistralLlmClient("mistral-small", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 1.0, 3.0)
 MISTRAL_8X7B = MistralLlmClient("open-mixtral-8x7b", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 0.7, 0.7)
 MISTRAL_LARGE = MistralLlmClient("mistral-large-2407", 120000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 3.0, 9.0)
-GPT3_5 = OpenAIModel('gpt-3.5-turbo-0125', 15000, BucketRateLimiter(10000, 2000000), OPENAI_THREAD_POOL, 0.5, 1.5)
-GPT4 = OpenAIModel('gpt-4-turbo-2024-04-09', 120000, BucketRateLimiter(10000, 2000000), OPENAI_THREAD_POOL, 10.0, 30.0)
-GPT4o = OpenAIModel('gpt-4o-2024-08-06', 120000, BucketRateLimiter(10000, 30000000), OPENAI_THREAD_POOL, 2.5, 10.0)
-GPT4omini = OpenAIModel('gpt-4o-mini', 120000, BucketRateLimiter(10000, 15000000), OPENAI_THREAD_POOL, 0.15, 0.60)
-ANTHROPIC_OPUS = AnthropicModel("claude-3-opus-20240229", 180000, BucketRateLimiter(240, 400000), ANTHROPIC_THREAD_POOL,
+GPT3_5 = OpenAIModel('gpt-3.5-turbo-0125', 15000, BucketRateLimiter(10000), OPENAI_THREAD_POOL, 0.5, 1.5)
+GPT4 = OpenAIModel('gpt-4-turbo-2024-04-09', 120000, BucketRateLimiter(10000), OPENAI_THREAD_POOL, 10.0, 30.0)
+GPT4o = OpenAIModel('gpt-4o-2024-08-06', 120000, BucketRateLimiter(10000), OPENAI_THREAD_POOL, 2.5, 10.0)
+GPT4omini = OpenAIModel('gpt-4o-mini', 120000, BucketRateLimiter(10000), OPENAI_THREAD_POOL, 0.15, 0.60)
+ANTHROPIC_OPUS = AnthropicModel("claude-3-opus-20240229", 180000, BucketRateLimiter(240), ANTHROPIC_THREAD_POOL,
                                 15.0, 75.0)
-ANTHROPIC_SONNET = AnthropicModel("claude-3-5-sonnet-20240620", 180000, BucketRateLimiter(480, 400000),
+ANTHROPIC_SONNET = AnthropicModel("claude-3-5-sonnet-20240620", 180000, BucketRateLimiter(480),
                                   ANTHROPIC_THREAD_POOL, 3.0, 15.0)
-ANTHROPIC_HAIKU = AnthropicModel("claude-3-haiku-20240307", 180000, BucketRateLimiter(240, 400000), ANTHROPIC_THREAD_POOL,
+ANTHROPIC_HAIKU = AnthropicModel("claude-3-haiku-20240307", 180000, BucketRateLimiter(240), ANTHROPIC_THREAD_POOL,
                                  0.25, 1.25)
 # DEEPSEEK = DeepseekModel("deepseek-chat", 24000, RateLlmiter(20, MINUTE_TIME_WINDOW), DEEPSEEK_EXECUTOR)
-GEMINI_FLASH = GeminiModel("gemini-1.5-flash", 120000, BucketRateLimiter(240, 4000000), GEMINI_THREAD_POOL, 0.075, .35)
-GEMINI_PRO = GeminiModel("gemini-1.5-pro", 120000, BucketRateLimiter(240, 4000000), GEMINI_THREAD_POOL, 3.5, 7.0)
+GEMINI_FLASH = GeminiModel("gemini-1.5-flash", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 0.075, .35)
+GEMINI_PRO = GeminiModel("gemini-1.5-pro", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 3.5, 7.0)
 FIREWORKS_LLAMA3_1_8B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-8b-instruct", 120000,
                                          FIREWORKS_RATE_LIMITER, FIREWORKS_THREAD_POOL, 0.20, 0.20)
 FIREWORKS_LLAMA3_1_405B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-405b-instruct", 120000,
@@ -885,9 +867,9 @@ TOMBU_DOLPHIN_QWEN2_72B= FireworksAIModel("accounts/fireworks/models/dolphin-2-9
 TOMBU_NEMO_12B= FireworksAIModel("accounts/fireworks/models/mistral-nemo-instruct-2407#accounts/tombu-8c8576/deployments/0fdd946e", 120000,
                                          TOMBU_RATE_LIMITER, TOMBU_THREAD_POOL, 0.20, 0.20)
 GROQ_LLAMA3_1_70B= GroqModel("llama-3.1-70b-versatile", 120000,
-                                         BucketRateLimiter(100, 130000), GROQ_THREAD_POOL, 0.70, 0.70)
+                                         BucketRateLimiter(100), GROQ_THREAD_POOL, 0.70, 0.70)
 GROQ_LLAMA3_1_8B= GroqModel("llama-3.1-8b-instant", 120000,
-                                         BucketRateLimiter(30, 130000), GROQ_THREAD_POOL, 0.20, 0.20)
+                                         BucketRateLimiter(30), GROQ_THREAD_POOL, 0.20, 0.20)
 AI21_JAMBA_1_5_MINI = AI21Model("jamba-1.5-mini", 120000,
                                 AI21_RATE_LIMITER, AI21_THREAD_POOL,0.20, 0.40)
 AI21_JAMBA_1_5_LARGE = AI21Model("jamba-1.5-large", 120000,
@@ -918,11 +900,6 @@ def init_llm_clients(data_directory="data"):
     RateLlmiterMonitor.get_instance().start()
     add_service_to_stop(RateLlmiterMonitor.get_instance())
     return clients_with_keys
-
-
-def get_rate_limiter_monitor() -> RateLlmiterMonitor:
-    return RateLlmiterMonitor.get_instance()
-
 
 def stop_llm_clients():
     llm_client_prompt_status_service().stop()
@@ -962,7 +939,7 @@ if __name__ == "__main__":
     for client in ACTIVE_LLM_CLIENT_DICT.values():
         print("Testing " + client.model_name)
         try:
-            response = client.test_if_blocked()
+            response = client.ratellmiter_is_llm_blocked()
             print(client.model_name + "blocked: " + str(response))
             #response = client.prompt(str(uuid.uuid4()), TEST_PROMPT, json_output=True)
             #print(str(response.response_dict) + " input cost: " + str(response.input_cost) + " output cost: " + str(

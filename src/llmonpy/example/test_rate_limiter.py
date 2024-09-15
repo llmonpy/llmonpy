@@ -24,7 +24,7 @@ class TestRatellmiterPypeLine(LLMonPypeline):
 
     def execute_step(self, recorder: TraceLogRecorderInterface):
         step_list = []
-        for i in range(0, 500):
+        for i in range(0, 100):
             set_step_list = create_prompt_steps(recorder, self.test_prompt, self.model_info_list)
             step_list.extend(set_step_list)
         self.run_parallel_steps(step_list)
