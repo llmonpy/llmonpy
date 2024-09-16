@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llmonpy"
-version = "0.1.33"
+version = "0.1.34"
 authors = [{ name="Tom Burns", email="public@llmonpy.ai" }]
 description = "AI pipeline framework for Python."
 readme = "README.md"
@@ -18,6 +18,7 @@ dependencies = [
     "together",
     "groq",
     "ai21",
+    "ratellmiter-ai",
     "jinja2",
     "flask",
     "flask_cors",

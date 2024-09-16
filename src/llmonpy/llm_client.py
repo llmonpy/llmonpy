@@ -36,10 +36,9 @@ import google.generativeai as genai
 from together import Together
 
 from llmonpy.llmonpy_util import fix_common_json_encoding_errors
-from llmonpy.rate_llmiter import RateLimitedService, BucketRateLimiter, RateLlmiterMonitor, SecondTicketBucketListener, \
-    RATE_LIMIT_RETRIES, LlmClientRateLimitException, ratellmiter
+from ratellmiter.rate_llmiter import RateLimitedService, BucketRateLimiter, RateLlmiterMonitor, SecondTicketBucketListener, \
+    LlmClientRateLimitException, llmiter, SecondTicketBucket
 from llmonpy.system_services import add_service_to_stop
-from llmonpy.rate_llmiter import SecondTicketBucket
 
 PROMPT_RETRIES = 5
 BASE_RETRY_DELAY = 30  # seconds
@@ -388,7 +387,7 @@ class LlmClient(RateLimitedService):
                                          model_name_for_logging=self.model_name, user_request_id=prompt_id)
         return result
 
-    @ratellmiter(user_request_id_arg="user_request_id", model_name_arg="model_name_for_logging")
+    @llmiter(user_request_id_arg="user_request_id", model_name_arg="model_name_for_logging")
     def rate_llmiter_prompt(self, prompt_text, system_prompt=None, json_output=False, temp=0.0,
                max_output=None, user_request_id=None, model_name_for_logging=None) -> LlmClientResponse:
         result = None
