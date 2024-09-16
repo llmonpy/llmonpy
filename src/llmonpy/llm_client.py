@@ -24,23 +24,24 @@ import uuid
 from queue import Queue, Empty
 
 import anthropic
+from ai21 import AI21Client
+from ai21.models.chat import SystemMessage, UserMessage
 from fireworks.client import Fireworks
 from fireworks.client.error import RateLimitError
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from groq import Groq
 from mistralai import Mistral
-from nothingpy import Nothing
 from openai import OpenAI
 import google.generativeai as genai
-from tenacity import retry, wait_exponential
 from together import Together
 
 from llmonpy.llmonpy_util import fix_common_json_encoding_errors
-from llmonpy.rate_llmiter import RateLimitedService, BucketRateLimiter, RateLlmiterMonitor
+from llmonpy.rate_llmiter import RateLimitedService, BucketRateLimiter, RateLlmiterMonitor, SecondTicketBucketListener, \
+    RATE_LIMIT_RETRIES, LlmClientRateLimitException, ratellmiter
 from llmonpy.system_services import add_service_to_stop
+from llmonpy.rate_llmiter import SecondTicketBucket
 
 PROMPT_RETRIES = 5
-RATE_LIMIT_RETRIES = 20
 BASE_RETRY_DELAY = 30  # seconds
 DEFAULT_THREAD_POOL_SIZE = 200
 TOKEN_UNIT_FOR_COST = 1000000
@@ -54,10 +55,12 @@ DEEPSEEK_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT
 GEMINI_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 FIREWORKS_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 TOMBU_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
+AI21_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 GROQ_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
-MISTRAL_RATE_LIMITER = BucketRateLimiter(180, 20000000, "MISTRAL")
-FIREWORKS_RATE_LIMITER = BucketRateLimiter(300, 20000000, "FIREWORKS")
-TOMBU_RATE_LIMITER = BucketRateLimiter(1200, 20000000, "TOMBU_FIREWORKS")
+MISTRAL_RATE_LIMITER = BucketRateLimiter(180, "MISTRAL")
+FIREWORKS_RATE_LIMITER = BucketRateLimiter(300, "FIREWORKS")
+TOMBU_RATE_LIMITER = BucketRateLimiter(1200, "TOMBU_FIREWORKS")
+AI21_RATE_LIMITER = BucketRateLimiter(60,  "AI21")
 
 
 class LLMonPyNoKeyForApiException(Exception):
@@ -97,7 +100,12 @@ class LLMClientPromptStatus:
         self.prompt_id = prompt_id
         self.client_name = client_name
         self.start_time = time.time()
+        self.done_time = None
         self.state = PROMPT_STATE_WAITING_FOR_TICKET
+
+    def make_done(self, done_time):
+        self.done_time = done_time
+        self.state = PROMPT_STATE_DONE
 
 
 class LLMClientStatus:
@@ -129,7 +137,7 @@ class LLMClientStatus:
         return result
 
 
-class LLMClientStatusService:
+class LLMClientStatusService (SecondTicketBucketListener):
     _instance = None
     REPORT_INTERVAL = 2
 
@@ -138,10 +146,12 @@ class LLMClientStatusService:
             cls._instance = super(LLMClientStatusService, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self, log_directory=None):
         self.client_status_dict = {}
         self.status_lock = threading.Lock()
         self.timer = threading.Timer(interval=LLMClientStatusService.REPORT_INTERVAL, function=self.report_status)
+        self.completion_time_list: [float] = []
+        self.log_directory = log_directory
         self.running = False
 
     def start(self):
@@ -156,43 +166,101 @@ class LLMClientStatusService:
     def stop(self):
         self.running = False
         self.timer.cancel()
+        if self.log_directory is not None:
+            self.write_completion_times()
+
+    def write_completion_times(self):
+        if len(self.completion_time_list) > 0:
+            second_offset_list = []
+            first_time = self.completion_time_list[0]
+            for time_in_seconds in self.completion_time_list:
+                second_index = int(time_in_seconds - first_time)
+                second_offset_list.append(second_index)
+            max_offset = second_offset_list[len(second_offset_list) - 1]
+            second_count_dict = {}
+            for second in second_offset_list:
+                if second not in second_count_dict:
+                    second_count_dict[second] = 1
+                else:
+                    second_count_dict[second] += 1
+            second_count_list = []
+            for i in range(max_offset):
+                count = second_count_dict.get(i, 0)
+                second_count_list.append(count)
+            csv_string = ",".join([str(x) for x in second_count_list])
+            with open(self.log_directory + "/second_request_counts.csv", "w") as file:
+                file.write(csv_string)
+
+    def log_second_bucket(self, bucket: SecondTicketBucket):
+        new_requests = bucket.get_new_requests()
+        issued_ticket_list = bucket.get_issued_tickets()
+        rate_exception_list = bucket.get_new_rate_exceptions()
+        finished_request_list = bucket.get_finished_requests()
+        with self.status_lock:
+            for request in new_requests:
+                self.unsafe_start_prompt(request.user_request_id, request.model_name)
+            for request in issued_ticket_list:
+                self.unsafe_got_ticket(request.user_request_id, request.model_name)
+            for request in rate_exception_list:
+                self.unsafe_rate_limit_exceeded(request.user_request_id, request.model_name)
+            for request in finished_request_list:
+                self.unsafe_prompt_done(request.user_request_id, request.model_name)
+                self.completion_time_list.append(request.finished_second_bucket_id)
 
     def start_prompt(self, prompt_id, client_name):
         with self.status_lock:
-            if client_name not in self.client_status_dict:
-                self.client_status_dict[client_name] = LLMClientStatus(client_name)
-            client_status = self.client_status_dict[client_name]
-            client_status.waiting_for_ticket += 1
-            prompt_status = LLMClientPromptStatus(prompt_id, client_name)
-            client_status.in_flight_prompt_dict[prompt_id] = prompt_status
+            self.unsafe_start_prompt(prompt_id, client_name)
+
+    def unsafe_start_prompt(self, prompt_id, client_name):
+        if client_name not in self.client_status_dict:
+            self.client_status_dict[client_name] = LLMClientStatus(client_name)
+        client_status = self.client_status_dict[client_name]
+        client_status.waiting_for_ticket += 1
+        prompt_status = LLMClientPromptStatus(prompt_id, client_name)
+        client_status.in_flight_prompt_dict[prompt_id] = prompt_status
 
     def rate_limit_exceeded(self, prompt_id, client_name):
         with self.status_lock:
-            client_status = self.client_status_dict[client_name]
-            client_status.waiting_for_ticket += 1
-            client_status.rate_limit_count += 1
-            prompt_status = client_status.in_flight_prompt_dict[prompt_id]
-            prompt_status.state = PROMPT_STATE_WAITING_FOR_TICKET
+            self.unsafe_rate_limit_exceeded(prompt_id, client_name)
+
+    def unsafe_rate_limit_exceeded(self, prompt_id, client_name):
+        client_status = self.client_status_dict[client_name]
+        client_status.waiting_for_ticket += 1
+        client_status.rate_limit_count += 1
+        prompt_status = client_status.in_flight_prompt_dict[prompt_id]
+        prompt_status.state = PROMPT_STATE_WAITING_FOR_TICKET
 
     def got_ticket(self, prompt_id, client_name):
         with self.status_lock:
-            client_status = self.client_status_dict[client_name]
-            client_status.waiting_for_ticket -= 1
-            prompt_status = client_status.in_flight_prompt_dict[prompt_id]
+            self.unsafe_got_ticket(prompt_id, client_name)
+
+    def unsafe_got_ticket(self, prompt_id, client_name):
+        client_status = self.client_status_dict[client_name]
+        client_status.waiting_for_ticket -= 1
+        prompt_status = client_status.in_flight_prompt_dict.get(prompt_id, None)
+        if prompt_status is not None:
             prompt_status.state = PROMPT_STATE_HAVE_TICKET
 
     def prompt_done(self, prompt_id, client_name):
+        current_time = time.time()
         with self.status_lock:
-            client_status = self.client_status_dict[client_name]
-            client_status.completed_prompt_count += 1
-            del client_status.in_flight_prompt_dict[prompt_id]
+            self.unsafe_prompt_done(prompt_id, client_name)
+            self.completion_time_list.append(current_time)
+
+    def unsafe_prompt_done(self, prompt_id, client_name):
+        client_status = self.client_status_dict[client_name]
+        client_status.completed_prompt_count += 1
+        del client_status.in_flight_prompt_dict[prompt_id]
 
     def prompt_failed(self, prompt_id, client_name):
         with self.status_lock:
-            client_status = self.client_status_dict[client_name]
-            client_status.completed_prompt_count += 1
-            client_status.exception_count += 1
-            del client_status.in_flight_prompt_dict[prompt_id]
+            self.prompt_failed(prompt_id, client_name)
+
+    def unsafe_prompt_failed(self, prompt_id, client_name):
+        client_status = self.client_status_dict[client_name]
+        client_status.completed_prompt_count += 1
+        client_status.exception_count += 1
+        del client_status.in_flight_prompt_dict[prompt_id]
 
     def copy_status(self):
         with self.status_lock:
@@ -247,12 +315,6 @@ def llm_client_prompt_status_service() -> LLMClientStatusService:
     return result
 
 
-class LlmClientRateLimitException(Exception):
-    def __init__(self):
-        super().__init__("Rate limit exceeded")
-        self.status_code = 429
-
-
 class LlmClientJSONFormatException(Exception):
     def __init__(self, raw_text):
         super().__init__("JSON parsing error " + raw_text)
@@ -260,7 +322,7 @@ class LlmClientJSONFormatException(Exception):
 
 
 class LlmClientResponse:
-    def __init__(self, response_text, response_dict=Nothing, input_cost=0.0, output_cost=0.0):
+    def __init__(self, response_text, response_dict=None, input_cost=0.0, output_cost=0.0):
         self.response_text = response_text
         self.response_dict = response_dict
         self.input_cost = input_cost
@@ -302,7 +364,7 @@ class LlmClient(RateLimitedService):
     def get_model_name(self):
         return self.model_name
 
-    def test_if_blocked(self):
+    def ratellmiter_is_llm_blocked(self):
         result = True
         print("Testing if blocked")
         try:
@@ -316,42 +378,41 @@ class LlmClient(RateLimitedService):
             result = True
         return result
 
-    def prompt(self, prompt_id, prompt_text, system_prompt=Nothing, json_output=False, temp=0.0,
+    def get_ratellmiter(self, model_name: str = None):
+        return self.rate_limiter
+
+    def prompt(self, prompt_id, prompt_text, system_prompt=None, json_output=False, temp=0.0,
+               max_output=None) -> LlmClientResponse:
+        result = None
+        result = self.rate_llmiter_prompt(prompt_text, system_prompt, json_output, temp, max_output,
+                                         model_name_for_logging=self.model_name, user_request_id=prompt_id)
+        return result
+
+    @ratellmiter(user_request_id_arg="user_request_id", model_name_arg="model_name_for_logging")
+    def rate_llmiter_prompt(self, prompt_text, system_prompt=None, json_output=False, temp=0.0,
+               max_output=None, user_request_id=None, model_name_for_logging=None) -> LlmClientResponse:
+        result = None
+        result = self.do_prompt(prompt_text, system_prompt, json_output, temp, max_output)
+        if result is None:
+            raise LlmClientRateLimitException()
+        return result
+
+    """    
+    @retry(wait=wait_exponential(multiplier=1, min=5, max=15))
+    def tenacity_prompt(self, prompt_id, prompt_text, system_prompt=None, json_output=False, temp=0.0,
                max_output=None) -> LlmClientResponse:
         result = None
         llm_client_prompt_status_service().start_prompt(prompt_id, self.model_name)
-        ticket = self.rate_limiter.get_ticket()
         llm_client_prompt_status_service().got_ticket(prompt_id, self.model_name)
-        for attempt in range(RATE_LIMIT_RETRIES):
-            try:
-                result = self.do_prompt(prompt_text, system_prompt, json_output, temp, max_output)
-                if result is None or len(result.response_text) == 0:
-                    # some llms return empty result when the rate limit is exceeded, throw exception to retry
-                    raise LlmClientRateLimitException()
-                else:
-                    self.rate_limiter.return_ticket(ticket)
-                    llm_client_prompt_status_service().prompt_done(prompt_id, self.model_name)
-                    break
-            except RateLimitError as re:
-                ticket = self.wait_for_ticket_after_rate_limit_exceeded(prompt_id, ticket)
-                continue
-            except Exception as e:
-                if getattr(e, "status_code", None) is not None and (e.status_code == 429 or e.status_code == 529):
-                    ticket = self.wait_for_ticket_after_rate_limit_exceeded(prompt_id, ticket)
-                    continue
-                elif getattr(e, "code", None) is not None and (e.code == 429 or e.code == 529):
-                    ticket = self.wait_for_ticket_after_rate_limit_exceeded(prompt_id, ticket)
-                    continue
-                else:
-                    self.rate_limiter.return_ticket(ticket)
-                    llm_client_prompt_status_service().prompt_failed(prompt_id, self.model_name)
-                    raise e
+        result = self.do_prompt(prompt_text, system_prompt, json_output, temp, max_output)
+        llm_client_prompt_status_service().prompt_done(prompt_id, self.model_name)
         return result
+    """
 
     def wait_for_ticket_after_rate_limit_exceeded(self, prompt_id, ticket):
-        llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
+        #llm_client_prompt_status_service().rate_limit_exceeded(prompt_id, self.model_name)
         ticket = self.rate_limiter.wait_for_ticket_after_rate_limit_exceeded(ticket)
-        llm_client_prompt_status_service().got_ticket(prompt_id, self.model_name)
+        #llm_client_prompt_status_service().got_ticket(prompt_id, self.model_name)
         return ticket
 
     def do_prompt(self, prompt_text, system_prompt=None, json_output=False, max_output=None, temp=0.0):
@@ -374,7 +435,7 @@ class OpenAIModel(LlmClient):
     def __init__(self, model_name, max_input, rate_limiter, thread_pool=None, price_per_input_token=0.0,
                  price_per_output_token=0.0):
         super().__init__(model_name, max_input, rate_limiter, thread_pool, price_per_input_token, price_per_output_token)
-        self.client = Nothing
+        self.client = None
 
     def start(self):
         key = get_api_key("OPENAI_API_KEY")
@@ -382,9 +443,9 @@ class OpenAIModel(LlmClient):
 
     def do_prompt(self, prompt_text, system_prompt="You are an expert at analyzing text.", json_output=False,
                   temp=0.0, max_output=None):
-        system_prompt = system_prompt if system_prompt is not Nothing else "You are an expert at analyzing text."
+        system_prompt = system_prompt if system_prompt is not None else "You are an expert at analyzing text."
         result = None
-        response_text = Nothing
+        response_text = None
         response_format = "json_object" if json_output else "text"
         # retries just for json format errors
         for attempt in range(PROMPT_RETRIES):
@@ -399,7 +460,7 @@ class OpenAIModel(LlmClient):
                 timeout=90
             )
             response_text = completion.choices[0].message.content
-            response_dict = Nothing
+            response_dict = None
             if json_output:
                 try:
                     response_text = fix_common_json_encoding_errors(response_text)
@@ -418,7 +479,7 @@ class DeepseekModel(LlmClient):
     def __init__(self, model_name, max_input, rate_limiter, thread_pool=None, price_per_input_token=0.0,
                  price_per_output_token=0.0):
         super().__init__(model_name, max_input, rate_limiter, thread_pool, price_per_input_token, price_per_output_token)
-        self.client = Nothing
+        self.client = None
 
     def start(self):
         key = get_api_key("DEEPSEEK_API_KEY")
@@ -441,7 +502,7 @@ class AnthropicModel(LlmClient):
     def __init__(self, model_name, max_input, rate_limiter, thread_pool=None, price_per_input_token=0.0,
                  price_per_output_token=0.0):
         super().__init__(model_name, max_input, rate_limiter, thread_pool, price_per_input_token, price_per_output_token)
-        self.client = Nothing
+        self.client = None
 
     def start(self):
         key = get_api_key("ANTHROPIC_API_KEY")
@@ -449,7 +510,7 @@ class AnthropicModel(LlmClient):
 
     def do_prompt(self, prompt_text, system_prompt="You are an expert at analyzing text.", json_output=False,
                   temp=0.0, max_output=4096):
-        system_prompt = system_prompt if system_prompt is not Nothing else "You are an expert at analyzing text."
+        system_prompt = system_prompt if system_prompt is not None else "You are an expert at analyzing text."
         max_output = max_output if max_output is not None else 4096
         prompt_messages = [
             {
@@ -460,7 +521,7 @@ class AnthropicModel(LlmClient):
         if json_output:
             prompt_messages.append({"role": "assistant", "content": "{"})
         result = None
-        response_text = Nothing
+        response_text = None
         # retries just for json format errors
         for attempt in range(PROMPT_RETRIES):
             message = self.client.messages.create(
@@ -471,7 +532,7 @@ class AnthropicModel(LlmClient):
                 messages=prompt_messages
             )
             response_text = message.content[0].text
-            response_dict = Nothing
+            response_dict = None
             if json_output:
                 try:
                     response_text = "{ " + response_text
@@ -490,7 +551,7 @@ class MistralLlmClient(LlmClient):
     def __init__(self, model_name, max_input, rate_limiter, thread_pool, price_per_input_token=0.0,
                  price_per_output_token=0.0):
         super().__init__(model_name, max_input, rate_limiter, thread_pool, price_per_input_token, price_per_output_token)
-        self.client = Nothing
+        self.client = None
 
     def start(self):
         key = get_api_key("MISTRAL_API_KEY")
@@ -498,14 +559,14 @@ class MistralLlmClient(LlmClient):
 
     def do_prompt(self, prompt_text, system_prompt="You are an expert at analyzing text.", json_output=False, temp=0.0,
                   max_output=None):
-        system_prompt = system_prompt if system_prompt is not Nothing else "You are an expert at analyzing text."
+        system_prompt = system_prompt if system_prompt is not None else "You are an expert at analyzing text."
         response_format = "json_object" if json_output else "text"
         prompt_messages = [
             { "role": "system", "content": system_prompt },
             { "role": "user", "content": prompt_text }
         ]
         result = None
-        response_text = Nothing
+        response_text = None
         # retries just for json format errors
         for attempt in range(PROMPT_RETRIES):
             response = self.client.chat.complete(
@@ -516,7 +577,7 @@ class MistralLlmClient(LlmClient):
                 messages=prompt_messages
             )
             response_text = response.choices[0].message.content
-            response_dict = Nothing
+            response_dict = None
             if json_output:
                 try:
                     response_text = fix_common_json_encoding_errors(response_text)
@@ -536,7 +597,7 @@ class GeminiModel(LlmClient):
     def __init__(self, model_name, max_input, rate_limiter, thread_pool=None, price_per_input_token=0.0,
                  price_per_output_token=0.0):
         super().__init__(model_name, max_input, rate_limiter, thread_pool, price_per_input_token, price_per_output_token)
-        self.client = Nothing
+        self.client = None
 
     def start(self):
         key = get_api_key("GEMINI_API_KEY")
@@ -550,7 +611,7 @@ class GeminiModel(LlmClient):
         prompt_client = self.json_client if json_output else self.client
         full_prompt = str(system_prompt) + "\n\n" + prompt_text
         result = None
-        response_text = Nothing
+        response_text = None
         # retries just for json format errors
         for attempt in range(PROMPT_RETRIES):
             model_response = prompt_client.generate_content(full_prompt,
@@ -562,7 +623,7 @@ class GeminiModel(LlmClient):
                                                             },
                                                             generation_config=genai.GenerationConfig(temperature=temp))
             response_text = model_response.text
-            response_dict = Nothing
+            response_dict = None
             if json_output:
                 try:
                     response_text = fix_common_json_encoding_errors(response_text)
@@ -581,7 +642,7 @@ class TogetherAIModel(LlmClient):
     def __init__(self, model_name, max_input, rate_limiter, thread_pool=None, price_per_input_token=0.0,
                  price_per_output_token=0.0):
         super().__init__(model_name, max_input, rate_limiter, thread_pool, price_per_input_token, price_per_output_token)
-        self.client = Nothing
+        self.client = None
 
     def start(self):
         key = get_api_key("TOGETHER_API_KEY")
@@ -589,9 +650,9 @@ class TogetherAIModel(LlmClient):
 
     def do_prompt(self, prompt_text, system_prompt="You are an expert at analyzing text.", json_output=False,
                   temp=0.0, max_output=None):
-        system_prompt = system_prompt if system_prompt is not Nothing else ""
+        system_prompt = system_prompt if system_prompt is not None else ""
         result = None
-        response_text = Nothing
+        response_text = None
         full_prompt = str(system_prompt) + "\n\n" + prompt_text
         # retries just for json format errors
         for attempt in range(PROMPT_RETRIES):
@@ -601,7 +662,7 @@ class TogetherAIModel(LlmClient):
                 temperature=temp
             )
             response_text = completion.choices[0].text
-            response_dict = Nothing
+            response_dict = None
             if json_output:
                 try:
                     response_text = fix_common_json_encoding_errors(response_text)
@@ -621,7 +682,7 @@ class FireworksAIModel(LlmClient):
     def __init__(self, model_name, max_input, rate_limiter, thread_pool=None, price_per_input_token=0.0,
                  price_per_output_token=0.0, system_role_supported=True):
         super().__init__(model_name, max_input, rate_limiter, thread_pool, price_per_input_token, price_per_output_token)
-        self.client = Nothing
+        self.client = None
         self.system_role_supported = system_role_supported
 
     def start(self):
@@ -630,9 +691,9 @@ class FireworksAIModel(LlmClient):
 
     def do_prompt(self, prompt_text, system_prompt="You are an expert at analyzing text.", json_output=False,
                   temp=0.0, max_output=None):
-        system_prompt = system_prompt if system_prompt is not Nothing else "You are an expert at analyzing text."
+        system_prompt = system_prompt if system_prompt is not None else "You are an expert at analyzing text."
         result = None
-        response_text = Nothing
+        response_text = None
         response_format = "json_object" if json_output else "text"
         # retries just for json format errors
         for attempt in range(PROMPT_RETRIES):
@@ -657,7 +718,7 @@ class FireworksAIModel(LlmClient):
                     temperature=temp
                 )
             response_text = completion.choices[0].message.content
-            response_dict = Nothing
+            response_dict = None
             if json_output:
                 try:
                     response_text = fix_common_json_encoding_errors(response_text)
@@ -671,11 +732,53 @@ class FireworksAIModel(LlmClient):
             raise LlmClientJSONFormatException(response_text)
         return result
 
+class AI21Model(LlmClient):
+    def __init__(self, model_name, max_input, rate_limiter, thread_pool=None, price_per_input_token=0.0,
+                 price_per_output_token=0.0):
+        super().__init__(model_name, max_input, rate_limiter, thread_pool, price_per_input_token, price_per_output_token)
+        self.client = None
+
+    def start(self):
+        key = get_api_key("AI21_API_KEY")
+        self.client = AI21Client(api_key=key)
+
+    def do_prompt(self, prompt_text, system_prompt="You are an expert at analyzing text.", json_output=False,
+                  temp=0.0, max_output=None):
+        system_prompt = system_prompt if system_prompt is not None else "You are an expert at analyzing text."
+        result = None
+        response_text = None
+        response_format = "json_object" if json_output else "text"
+        # retries just for json format errors
+        for attempt in range(PROMPT_RETRIES):
+            completion = self.client.chat.completions.create(
+                model=self.model_name,
+                temperature=temp,
+                messages=[
+                    SystemMessage(content=system_prompt),
+                    UserMessage(content=prompt_text)
+                ],
+            )
+            result = completion.choices[0].message.content
+            response_dict = None
+            if json_output:
+                try:
+                    response_text = fix_common_json_encoding_errors(response_text)
+                    response_dict = json.loads(response_text)
+                except Exception as e:
+                    continue
+            input_cost, output_cost = self.calculate_costs(completion.usage.prompt_tokens,
+                                                           completion.usage.completion_tokens)
+            result = LlmClientResponse(response_text, response_dict, input_cost, output_cost)
+        if result is None and json_output:
+            raise LlmClientJSONFormatException(response_text)
+        return result
+
+
 class GroqModel(LlmClient):
     def __init__(self, model_name, max_input, rate_limiter, thread_pool=None, price_per_input_token=0.0,
                  price_per_output_token=0.0, system_role_supported=True):
         super().__init__(model_name, max_input, rate_limiter, thread_pool, price_per_input_token, price_per_output_token)
-        self.client = Nothing
+        self.client = None
         self.system_role_supported = system_role_supported
 
     def start(self):
@@ -684,9 +787,9 @@ class GroqModel(LlmClient):
 
     def do_prompt(self, prompt_text, system_prompt="You are an expert at analyzing text.", json_output=False,
                   temp=0.0, max_output=None):
-        system_prompt = system_prompt if system_prompt is not Nothing else "You are an expert at analyzing text."
+        system_prompt = system_prompt if system_prompt is not None else "You are an expert at analyzing text."
         result = None
-        response_text = Nothing
+        response_text = None
         response_format = "json_object" if json_output else "text"
         # retries just for json format errors
         for attempt in range(PROMPT_RETRIES):
@@ -711,7 +814,7 @@ class GroqModel(LlmClient):
                     temperature=temp
                 )
             response_text = completion.choices[0].message.content
-            response_dict = Nothing
+            response_dict = None
             if json_output:
                 try:
                     response_text = fix_common_json_encoding_errors(response_text)
@@ -733,19 +836,19 @@ MISTRAL_8X22B = MistralLlmClient("open-mixtral-8x22b", 8000, MISTRAL_RATE_LIMITE
 MISTRAL_SMALL = MistralLlmClient("mistral-small", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 1.0, 3.0)
 MISTRAL_8X7B = MistralLlmClient("open-mixtral-8x7b", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 0.7, 0.7)
 MISTRAL_LARGE = MistralLlmClient("mistral-large-2407", 120000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 3.0, 9.0)
-GPT3_5 = OpenAIModel('gpt-3.5-turbo-0125', 15000, BucketRateLimiter(10000, 2000000), OPENAI_THREAD_POOL, 0.5, 1.5)
-GPT4 = OpenAIModel('gpt-4-turbo-2024-04-09', 120000, BucketRateLimiter(10000, 2000000), OPENAI_THREAD_POOL, 10.0, 30.0)
-GPT4o = OpenAIModel('gpt-4o-2024-08-06', 120000, BucketRateLimiter(10000, 30000000), OPENAI_THREAD_POOL, 2.5, 10.0)
-GPT4omini = OpenAIModel('gpt-4o-mini', 120000, BucketRateLimiter(10000, 15000000), OPENAI_THREAD_POOL, 0.15, 0.60)
-ANTHROPIC_OPUS = AnthropicModel("claude-3-opus-20240229", 180000, BucketRateLimiter(4000, 400000), ANTHROPIC_THREAD_POOL,
+GPT3_5 = OpenAIModel('gpt-3.5-turbo-0125', 15000, BucketRateLimiter(10000), OPENAI_THREAD_POOL, 0.5, 1.5)
+GPT4 = OpenAIModel('gpt-4-turbo-2024-04-09', 120000, BucketRateLimiter(10000), OPENAI_THREAD_POOL, 10.0, 30.0)
+GPT4o = OpenAIModel('gpt-4o-2024-08-06', 120000, BucketRateLimiter(10000), OPENAI_THREAD_POOL, 2.5, 10.0)
+GPT4omini = OpenAIModel('gpt-4o-mini', 120000, BucketRateLimiter(10000), OPENAI_THREAD_POOL, 0.15, 0.60)
+ANTHROPIC_OPUS = AnthropicModel("claude-3-opus-20240229", 180000, BucketRateLimiter(240), ANTHROPIC_THREAD_POOL,
                                 15.0, 75.0)
-ANTHROPIC_SONNET = AnthropicModel("claude-3-5-sonnet-20240620", 180000, BucketRateLimiter(600, 400000),
+ANTHROPIC_SONNET = AnthropicModel("claude-3-5-sonnet-20240620", 180000, BucketRateLimiter(480),
                                   ANTHROPIC_THREAD_POOL, 3.0, 15.0)
-ANTHROPIC_HAIKU = AnthropicModel("claude-3-haiku-20240307", 180000, BucketRateLimiter(600, 400000), ANTHROPIC_THREAD_POOL,
+ANTHROPIC_HAIKU = AnthropicModel("claude-3-haiku-20240307", 180000, BucketRateLimiter(240), ANTHROPIC_THREAD_POOL,
                                  0.25, 1.25)
 # DEEPSEEK = DeepseekModel("deepseek-chat", 24000, RateLlmiter(20, MINUTE_TIME_WINDOW), DEEPSEEK_EXECUTOR)
-GEMINI_FLASH = GeminiModel("gemini-1.5-flash", 120000, BucketRateLimiter(600, 4000000), GEMINI_THREAD_POOL, 0.075, .35)
-GEMINI_PRO = GeminiModel("gemini-1.5-pro", 120000, BucketRateLimiter(360, 4000000), GEMINI_THREAD_POOL, 3.5, 7.0)
+GEMINI_FLASH = GeminiModel("gemini-1.5-flash", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 0.075, .35)
+GEMINI_PRO = GeminiModel("gemini-1.5-pro", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 3.5, 7.0)
 FIREWORKS_LLAMA3_1_8B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-8b-instruct", 120000,
                                          FIREWORKS_RATE_LIMITER, FIREWORKS_THREAD_POOL, 0.20, 0.20)
 FIREWORKS_LLAMA3_1_405B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-405b-instruct", 120000,
@@ -765,16 +868,18 @@ TOMBU_DOLPHIN_QWEN2_72B= FireworksAIModel("accounts/fireworks/models/dolphin-2-9
 TOMBU_NEMO_12B= FireworksAIModel("accounts/fireworks/models/mistral-nemo-instruct-2407#accounts/tombu-8c8576/deployments/0fdd946e", 120000,
                                          TOMBU_RATE_LIMITER, TOMBU_THREAD_POOL, 0.20, 0.20)
 GROQ_LLAMA3_1_70B= GroqModel("llama-3.1-70b-versatile", 120000,
-                                         BucketRateLimiter(100, 130000), GROQ_THREAD_POOL, 0.70, 0.70)
+                                         BucketRateLimiter(100), GROQ_THREAD_POOL, 0.70, 0.70)
 GROQ_LLAMA3_1_8B= GroqModel("llama-3.1-8b-instant", 120000,
-                                         BucketRateLimiter(30, 130000), GROQ_THREAD_POOL, 0.20, 0.20)
-
+                                         BucketRateLimiter(30), GROQ_THREAD_POOL, 0.20, 0.20)
+AI21_JAMBA_1_5_MINI = AI21Model("jamba-1.5-mini", 120000,
+                                AI21_RATE_LIMITER, AI21_THREAD_POOL,0.20, 0.40)
+AI21_JAMBA_1_5_LARGE = AI21Model("jamba-1.5-large", 120000,
+                                AI21_RATE_LIMITER, AI21_THREAD_POOL,2.00, 8.00)
 ACTIVE_LLM_CLIENT_DICT = {}
 
 
 def init_llm_clients(data_directory="data"):
     log_directory = os.path.join(data_directory, "rate_llmiter_logs")
-    RateLlmiterMonitor.get_instance().set_log_directory(log_directory)
     client_list = LlmClient.get_all_clients()
     clients_with_keys = []
     missing_key_map = {}
@@ -788,17 +893,13 @@ def init_llm_clients(data_directory="data"):
             continue
     for key in missing_key_map:
         print("No key found for " + key)
-    status_service = LLMClientStatusService()
+    status_service = LLMClientStatusService(log_directory)
     status_service.start()
     add_service_to_stop(status_service)
-    RateLlmiterMonitor.get_instance().start()
+    RateLlmiterMonitor.get_instance().add_listener(status_service)
+    RateLlmiterMonitor.get_instance().start(log_directory=log_directory)
     add_service_to_stop(RateLlmiterMonitor.get_instance())
     return clients_with_keys
-
-
-def get_rate_limiter_monitor() -> RateLlmiterMonitor:
-    return RateLlmiterMonitor.get_instance()
-
 
 def stop_llm_clients():
     llm_client_prompt_status_service().stop()
@@ -838,7 +939,7 @@ if __name__ == "__main__":
     for client in ACTIVE_LLM_CLIENT_DICT.values():
         print("Testing " + client.model_name)
         try:
-            response = client.test_if_blocked()
+            response = client.ratellmiter_is_llm_blocked()
             print(client.model_name + "blocked: " + str(response))
             #response = client.prompt(str(uuid.uuid4()), TEST_PROMPT, json_output=True)
             #print(str(response.response_dict) + " input cost: " + str(response.input_cost) + " output cost: " + str(

@@ -69,24 +69,24 @@ def copy_single_quoted_string(jsone_string, i, string_builder):
     return i
 
 
-def jsony_to_json(jsone_string):
-    if jsone_string is None:
+def jsony_to_json(jsony_string):
+    if jsony_string is None:
         return None
-    result = jsone_string
+    result = jsony_string
     with io.StringIO() as string_builder:
         current_char = None
         last_char = None
-        max_index = len(jsone_string)
+        max_index = len(jsony_string)
         i = 0
         while i < max_index:
-            current_char = jsone_string[i]
+            current_char = jsony_string[i]
             if current_char == "\"" and last_char != "\\":
-                i = copy_double_quoted_string(jsone_string, i, string_builder)
+                i = copy_double_quoted_string(jsony_string, i, string_builder)
             elif current_char == "'":
-                i = copy_single_quoted_string(jsone_string, i, string_builder)
+                i = copy_single_quoted_string(jsony_string, i, string_builder)
             else:
                 string_builder.write(current_char)
-            last_char = jsone_string[i]  # i could have been modified, so last char if different than current char
+            last_char = jsony_string[i]  # i could have been modified, so last char if different than current char
             i += 1
         result = string_builder.getvalue()
     return result

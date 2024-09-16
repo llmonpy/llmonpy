@@ -11,3 +11,4 @@ pip install together
 pip install fireworks-ai
 pip install matplotlib
 pip install groq
+pip install ai21
