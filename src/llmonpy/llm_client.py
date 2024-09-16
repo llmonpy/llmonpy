@@ -58,7 +58,7 @@ TOMBU_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_TH
 AI21_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 GROQ_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 MISTRAL_RATE_LIMITER = BucketRateLimiter(180, "MISTRAL")
-FIREWORKS_RATE_LIMITER = BucketRateLimiter(300, "FIREWORKS")
+FIREWORKS_RATE_LIMITER = BucketRateLimiter(480, "FIREWORKS")
 TOMBU_RATE_LIMITER = BucketRateLimiter(1200, "TOMBU_FIREWORKS")
 AI21_RATE_LIMITER = BucketRateLimiter(60,  "AI21")
 
