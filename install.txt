@@ -12,3 +12,4 @@ pip install fireworks-ai
 pip install matplotlib
 pip install groq
 pip install ai21
+pip install ratellmiter-ai
