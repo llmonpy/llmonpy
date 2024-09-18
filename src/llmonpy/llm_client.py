@@ -830,11 +830,11 @@ class GroqModel(LlmClient):
 
 # MIXTRAL tokenizer generates 20% more tokens than openai, so after reduce max_input to 80% of openai
 MISTRAL_7B = MistralLlmClient("open-mistral-7b", 12000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 0.25, 0.25)
-MISTRAL_NEMO_12B = MistralLlmClient("open-mistral-nemo-2407", 12000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 0.30, 0.30)
+MISTRAL_NEMO_12B = MistralLlmClient("open-mistral-nemo-2407", 12000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 0.15, 0.15)
 MISTRAL_8X22B = MistralLlmClient("open-mixtral-8x22b", 8000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 2.0, 6.0)
-MISTRAL_SMALL = MistralLlmClient("mistral-small", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 1.0, 3.0)
+MISTRAL_SMALL = MistralLlmClient("mistral-small", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 0.2, 0.6)
 MISTRAL_8X7B = MistralLlmClient("open-mixtral-8x7b", 24000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 0.7, 0.7)
-MISTRAL_LARGE = MistralLlmClient("mistral-large-2407", 120000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 3.0, 9.0)
+MISTRAL_LARGE = MistralLlmClient("mistral-large-2407", 120000, MISTRAL_RATE_LIMITER, MISTRAL_THREAD_POOL, 2.0, 6.0)
 GPT3_5 = OpenAIModel('gpt-3.5-turbo-0125', 15000, BucketRateLimiter(10000), OPENAI_THREAD_POOL, 0.5, 1.5)
 GPT4 = OpenAIModel('gpt-4-turbo-2024-04-09', 120000, BucketRateLimiter(10000), OPENAI_THREAD_POOL, 10.0, 30.0)
 GPT4o = OpenAIModel('gpt-4o-2024-08-06', 120000, BucketRateLimiter(10000), OPENAI_THREAD_POOL, 2.5, 10.0)
