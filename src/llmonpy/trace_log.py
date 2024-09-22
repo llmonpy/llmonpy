@@ -186,6 +186,17 @@ class LLMonPyLogPromptResponse(LLMonPyLogEvent):
         return result
 
 
+class QBaWa:
+    def __init__(self, question, best_answer, worse_answer):
+        self.question = question
+        self.best_answer = best_answer
+        self.worse_answer = worse_answer
+
+    def to_dict(self):
+        result = copy.copy(vars(self))
+        return result
+
+
 class ContestResult:
     def __init__(self, step_id,contestant_one_output_id, contestant_two_output_id, winner_output_id, dissenting_judges:int = 0):
         self.step_id = step_id
@@ -237,6 +248,19 @@ class TourneyResult(TourneyResultInterface):
         result_dict = self.to_dict()
         result = json.dumps(result_dict)
         return result
+
+    def generate_qbawa(self):
+        qbawa_list = []
+        contestant_map = {contestant.output_id: contestant for contestant in self.contestant_list}
+        for contest_result in self.contest_result_list:
+            contestant_1 = contestant_map.get(contest_result.contestant_one_output_id)
+            contestant_2 = contestant_map.get(contest_result.contestant_two_output_id)
+            if contest_result.winner_output_id == contest_result.contestant_one_output_id:
+                qbawa = QBaWa(self.request_text, contestant_1.step_output.output_dict, contestant_2.step_output.output_dict)
+            else:
+                qbawa = QBaWa(self.request_text, contestant_2.step_output.output_dict, contestant_1.step_output.output_dict)
+            qbawa_list.append(qbawa)
+        return qbawa_list
 
     @staticmethod
     def from_dict(dictionary):

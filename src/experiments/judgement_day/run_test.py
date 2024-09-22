@@ -3,13 +3,18 @@ import json
 import os
 import traceback
 
+import wandb
+import weave
+from weave import Dataset
 from experiments.judgement_day.llmonpy_validator import GenerateValidationChecklist
 from experiments.judgement_day.test_question import TestQuestion
 from llm_client import MISTRAL_LARGE, GEMINI_FLASH, FIREWORKS_LLAMA3_1_405B, ANTHROPIC_SONNET, GPT4o, ANTHROPIC_HAIKU, \
     GPT4omini, FIREWORKS_LLAMA3_1_8B, GPT3_5, MISTRAL_NEMO_12B, FIREWORKS_LLAMA3_1_70B, MISTRAL_SMALL
 from llmonpy.llmon_pypeline import LLMonPypeline
 from llmonpy.llmonpy_step import LLMonPyStepOutput, TraceLogRecorderInterface, make_model_list, ModelTemp
-from system_startup import llmonpy_stop, llmonpy_start
+from llmonpy.system_startup import llmonpy_stop, llmonpy_start
+from llmonpy.trace_log import trace_log_service
+
 
 class RunEvalTest(LLMonPypeline):
     class LLMonPyOutput(LLMonPyStepOutput):
@@ -25,7 +30,8 @@ class RunEvalTest(LLMonPypeline):
             self.good_answer_won_ranker = good_answer_won_ranker
 
         def to_dict(self):
-            result = {"test_question": self.test_question.to_dict()}
+            result = {"test_question": self.test_question.to_dict(),
+                      "validator": self.validator.to_dict()}
             """result = {"test_question": self.test_question.to_dict(),
                       "validator": self.validator.to_dict(),
                       "ranker": self.ranker.to_dict(),
@@ -98,6 +104,20 @@ class RunEvalTestList(LLMonPypeline):
         return result
 
 
+def save_qbawa():
+    api_key =os.environ.get("WANDB_API_KEY")
+    wandb.login(key=api_key)
+    weave.init("judgement_day")
+    tourney_result_list = trace_log_service().get_tourney_results_for_step_name("GenerateValidationChecklistPrompt")
+    qbawa_list = []
+    for tourney in tourney_result_list:
+        tourney_qbawa = tourney.generate_qbawa()
+        qbawa_list.extend(tourney_qbawa)
+    qbawa_list = [qbawa.to_dict() for qbawa in qbawa_list]
+    dataset = Dataset(name="GenerateValidationChecklistPrompt", rows=qbawa_list)
+    weave.publish(dataset)
+
+
 if __name__ == "__main__":
     llmonpy_start()
     try:
@@ -110,6 +130,7 @@ if __name__ == "__main__":
         test_question_list = [TestQuestion.from_dict(test_question) for test_question in partial_test_data]
         step = RunEvalTestList(test_question_list).create_step(None)
         response = step.record_step()
+        save_qbawa()
         print("done")
     except Exception as e:
         stack_trace = traceback.format_exc()

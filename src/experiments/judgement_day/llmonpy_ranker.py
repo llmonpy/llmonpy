@@ -7,7 +7,7 @@ from llmonpy.llmonpy_tournament import TournamentJudgePrompt
 from llmonpy_gar import GenerateAggregateRankStep
 
 
-class ValidationChecklistItem:
+class RankerChecklistItem:
     def __init__(self, justification: str, test_question: str):
         self.justification = justification
         self.test_question = test_question
@@ -18,11 +18,11 @@ class ValidationChecklistItem:
 
     @staticmethod
     def from_dict(dict):
-        return ValidationChecklistItem(**dict)
+        return RankerChecklistItem(**dict)
 
 
-class ValidationChecklist:
-    def __init__(self, checklist: [ValidationChecklistItem]):
+class RankerChecklist:
+    def __init__(self, checklist: [RankerChecklistItem]):
         self.checklist = checklist
 
     def to_dict(self):
@@ -33,10 +33,10 @@ class ValidationChecklist:
 
     @staticmethod
     def from_dict(dict):
-        return ValidationChecklist(**dict)
+        return RankerChecklist(**dict)
 
 
-class GenerateValidationChecklistPrompt(LLMonPyPrompt):
+class GenerateRankerChecklistPrompt(LLMonPyPrompt):
     criteria_text = """
     Ensure that the checklist covers all relevant aspects of the request, including but not limited to:
         1. Completeness: Does the response contain all required information and cover all key points requested?
@@ -46,9 +46,10 @@ class GenerateValidationChecklistPrompt(LLMonPyPrompt):
         5. Clarity: Is the response well-organized and easy to understand?
         6. Formatting: Is the response formatted as required (e.g., structure, units, or presentation)?
         7. Compliance: Does the response adhere to any specific instructions, guidelines, or restrictions (if applicable)?
-        
+
     Tailor the checklist to the specific nature of the request, focusing on the most relevant aspects. Limit the
-    checklist to from 1 to 3 test questions to ensure that it is concise and focused.
+    checklist to from 1 to 3 test questions and ensure that the test questions are substantially different from each 
+    other.  It two test questions are likely to produce the same result, then only one of them should be included.
     """
     prompt_text = """
     Given the request enclosed in <request-to-validate> tags, create a comprehensive and structured checklist to 
@@ -56,19 +57,19 @@ class GenerateValidationChecklistPrompt(LLMonPyPrompt):
     <request-to-validate>
         {{request_to_validate}}
     </request-to-validate>
-     
+
     For each item in the checklist:
         1. Provide a clear justification for why this check is necessary.
         2. Formulate a specific test question that can be answered with either "Pass" or "Fail".
 
     {{criteria_text}}
-    
+
     {% for checklist in example_list %}
         Here are examples of checklists that have been submitted by other contestants:
         # Contestant {{ loop.index }}
         "{{ checklist }}"
     {% endfor %}
-    
+
     You should format your checklist as JSON in this format:
     {
         "checklist": [
@@ -95,7 +96,7 @@ class GenerateValidationChecklistPrompt(LLMonPyPrompt):
         return result
 
     class LLMonPyOutput(LLMonPyPrompt.LLMonPyOutput):
-        def __init__(self, checklist:[ValidationChecklistItem]=None):
+        def __init__(self, checklist: [RankerChecklistItem] = None):
             super().__init__()
             self.checklist = checklist
 
@@ -108,7 +109,7 @@ class GenerateValidationChecklistPrompt(LLMonPyPrompt):
         @classmethod
         def from_dict(cls, dictionary):
             if dictionary["checklist"] is not None:
-                checklist = [ValidationChecklistItem.from_dict(step_dict) for step_dict in dictionary["checklist"]]
+                checklist = [RankerChecklistItem.from_dict(step_dict) for step_dict in dictionary["checklist"]]
                 dictionary["checklist"] = checklist
             result = cls(**dictionary)
             return result
@@ -122,7 +123,7 @@ class GenerateValidationChecklistPrompt(LLMonPyPrompt):
                 <request-to-validate>
                     {{request_to_validate}}
                 </request-to-validate>
-             
+
             Some criteria to consider are:
 
             {{criteria_text}}
@@ -163,9 +164,9 @@ class GenerateValidationChecklistPrompt(LLMonPyPrompt):
             return result
 
 
-class GenerateValidationChecklist(LLMonPypeline):
+class GenerateRankerChecklist(LLMonPypeline):
     class LLMonPyOutput(LLMonPyStepOutput):
-        def __init__(self, checklist: ValidationChecklist):
+        def __init__(self, checklist: RankerChecklist):
             super().__init__()
             self.checklist = checklist
 
@@ -186,12 +187,12 @@ class GenerateValidationChecklist(LLMonPypeline):
         return {"request_to_validate": self.request_to_validate}
 
     def execute_step(self, recorder):
-        generator_prompt = GenerateValidationChecklistPrompt(self.request_to_validate)
-        judgement_prompt = GenerateValidationChecklistPrompt.JudgePrompt(generator_prompt)
-        gar = GenerateAggregateRankStep(generator_prompt, self.generate_info_list, self.aggregate_info_list, 1,
-                                          judgement_prompt, self.judge_client_info_list).create_step(recorder)
+        generator_prompt = GenerateRankerChecklistPrompt(self.request_to_validate)
+        judgement_prompt = GenerateRankerChecklistPrompt.JudgePrompt(generator_prompt)
+        gar = GenerateAggregateRankStep(generator_prompt, self.generate_info_list, self.aggregate_info_list, 2,
+                                        judgement_prompt, self.judge_client_info_list).create_step(recorder)
         gar.record_step()
         ordered_response_list = gar.get_step_output().ordered_response_list
-        validation_checklist = ValidationChecklist(ordered_response_list[0].step_output.checklist)
-        result = GenerateValidationChecklist.LLMonPyOutput(validation_checklist)
+        validation_checklist = RankerChecklist(ordered_response_list[0].step_output.checklist)
+        result = GenerateRankerChecklist.LLMonPyOutput(validation_checklist)
         return result
