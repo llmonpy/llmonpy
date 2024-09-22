@@ -126,7 +126,7 @@ if __name__ == "__main__":
         file_path = api_dir + "/eval_test_data.json"
         with open(file_path, "r") as file:
             full_test_data = json.load(file)
-        partial_test_data = full_test_data[:5]
+        partial_test_data = full_test_data[:1]
         test_question_list = [TestQuestion.from_dict(test_question) for test_question in partial_test_data]
         step = RunEvalTestList(test_question_list).create_step(None)
         response = step.record_step()
