@@ -13,3 +13,4 @@ pip install --upgrade matplotlib
 pip install --upgrade groq
 pip install --upgrade ai21
 pip install --upgrade ratellmiter-ai
+pip install --upgrade weave
