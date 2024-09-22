@@ -107,7 +107,7 @@ class RunEvalTestList(LLMonPypeline):
 def save_qbawa():
     api_key =os.environ.get("WANDB_API_KEY")
     wandb.login(key=api_key)
-    weave.init("judgement_day")
+    weave.init("public_judgement_day")
     tourney_result_list = trace_log_service().get_tourney_results_for_step_name("GenerateValidationChecklistPrompt")
     qbawa_list = []
     for tourney in tourney_result_list:
@@ -116,6 +116,18 @@ def save_qbawa():
     qbawa_list = [qbawa.to_dict() for qbawa in qbawa_list]
     dataset = Dataset(name="GenerateValidationChecklistPrompt", rows=qbawa_list)
     weave.publish(dataset)
+
+
+def write_training_data():
+    tourney_result_list = trace_log_service().get_tourney_results_for_step_name("GenerateValidationChecklistPrompt")
+    qbawa_list = []
+    for tourney in tourney_result_list:
+        tourney_qbawa = tourney.generate_qbawa()
+        qbawa_list.extend(tourney_qbawa)
+    qbawa_list = [qbawa.to_dict() for qbawa in qbawa_list]
+    file_path = "training_data.json"
+    with open(file_path, "w") as file:
+        json.dump(qbawa_list, file, indent=4)
 
 
 if __name__ == "__main__":
@@ -130,7 +142,7 @@ if __name__ == "__main__":
         test_question_list = [TestQuestion.from_dict(test_question) for test_question in partial_test_data]
         step = RunEvalTestList(test_question_list).create_step(None)
         response = step.record_step()
-        save_qbawa()
+        #save_qbawa()
         print("done")
     except Exception as e:
         stack_trace = traceback.format_exc()
