@@ -18,7 +18,7 @@ import json
 import uuid
 
 from llmonpy.llmon_pypeline import LLMonPypeline
-from llmonpy.llmonpy_prompt import LLMonPyPrompt, create_prompt_steps, JudgePrompt
+from llmonpy.llmonpy_prompt import LLMonPyPrompt, create_prompt_steps, JudgePrompt, LLMonPyPromptRunner
 from llmonpy.llmonpy_step import LLMonPyStep, LLMonPyStepOutput, TraceLogRecorderInterface, STEP_NAME_SEPARATOR, \
     DictLLMonPyStepOutput, JudgedOutput, STEP_TYPE_TOURNEY, STEP_TYPE_CYCLE, STEP_TYPE_JUDGE, STEP_TYPE_RANKER, \
     STEP_TYPE_JURY, STEP_TYPE_GENERATOR
@@ -178,8 +178,9 @@ class OrderedStepOutputList(LLMonPyStepOutput):
 
 
 class RankOutputStep(LLMonPypeline):
-    def __init__(self, contestant_step_name, contestant_list: [JudgedOutput], judgement_prompt, judgement_model_info_list):
-        self.contestant_step_name = contestant_step_name
+    def __init__(self, prompt, contestant_list: [JudgedOutput], judgement_prompt, judgement_model_info_list):
+        self.request_text = LLMonPyPromptRunner.render_prompt(prompt)
+        self.contestant_step_name = prompt.get_short_step_name()
         self.contestant_list = contestant_list
         self.judgement_prompt = judgement_prompt
         self.judgement_model_info_list = judgement_model_info_list
@@ -201,7 +202,7 @@ class RankOutputStep(LLMonPypeline):
         contest_list = []
         number_of_contestants = len(self.contestant_list)
         number_of_judges = len(self.judgement_model_info_list)
-        self.tourney_result = recorder.create_tourney_result(number_of_judges, self.contestant_step_name)
+        self.tourney_result = recorder.create_tourney_result(self.request_text, number_of_judges, self.contestant_step_name)
         while start_index < (number_of_contestants - 1):
             for i in range(start_index + 1, number_of_contestants):
                 contest_list.append(CompareOutputStep(self.contestant_list[start_index], self.contestant_list[i],
@@ -251,7 +252,7 @@ class LLMonPyTournament(LLMonPypeline):
         generate_step = TournamentResponseGenerator(self.generation_prompt, self.generation_model_info_list).create_step(recorder)
         generate_step.record_step()
         response_list = generate_step.get_step_output().response_list
-        rank_step = RankOutputStep(self.generation_prompt.get_short_step_name(), response_list, self.judgement_prompt,
+        rank_step = RankOutputStep(self.generation_prompt, response_list, self.judgement_prompt,
                                    self.judgement_model_info_list).create_step(recorder)
         rank_step.record_step()
         result = OrderedStepOutputList(rank_step.get_step_output().ordered_response_list)
@@ -325,7 +326,7 @@ class AdaptiveICLCycle(LLMonPypeline):
             full_list = best_list + self.example_list
             for judged_output in full_list:
                 judged_output.reset_victory_count()
-            rank_step = RankOutputStep(self.generation_prompt.get_short_step_name(), full_list, self.judgement_prompt,
+            rank_step = RankOutputStep(self.generation_prompt, full_list, self.judgement_prompt,
                                        self.judgement_model_info_list).create_step(recorder)
             rank_step.record_step()
             ordered_response_list = rank_step.get_step_output().ordered_response_list

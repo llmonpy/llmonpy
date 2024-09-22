@@ -249,7 +249,7 @@ class TraceLogRecorderInterface:
     def record_cost(self, cost):
         raise NotImplementedError()
 
-    def create_tourney_result(self, number_of_judges, judge_step_name) -> TourneyResultInterface:
+    def create_tourney_result(self, request_text, number_of_judges, judge_step_name) -> TourneyResultInterface:
         raise NotImplementedError()
 
     def record_tourney_result(self, contestant_list: [LLMonPyStepOutput], tourney_result):

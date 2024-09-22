@@ -43,7 +43,7 @@ class GenerateAggregateRankStep(LLMonPypeline):
             recorder.set_step_examples(self.generation_prompt.get_step_name(), step_output_list)
         print("ranking")
         if self.judgement_prompt is not None:
-            rank_step = RankOutputStep(self.generation_prompt.get_short_step_name(), judged_output_list,
+            rank_step = RankOutputStep(self.generation_prompt, judged_output_list,
                                        self.judgement_prompt, self.judgement_model_info_list).create_step(recorder)
             rank_step.record_step()
             result_output_list = rank_step.get_step_output().ordered_response_list

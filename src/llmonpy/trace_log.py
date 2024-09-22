@@ -209,7 +209,7 @@ class ContestResult:
 
 
 class TourneyResult(TourneyResultInterface):
-    def __init__(self, tourney_result_id, step_id, trace_id, step_name, start_time, input_data, number_of_judges,
+    def __init__(self, tourney_result_id, step_id, trace_id, step_name, start_time, request_text, number_of_judges,
                  contestant_list: [LLMonPyStepOutput] = None,
                  contest_result_list: [ContestResult] = None):
         self.tourney_result_id = tourney_result_id
@@ -217,7 +217,7 @@ class TourneyResult(TourneyResultInterface):
         self.trace_id = trace_id
         self.step_name = step_name
         self.start_time = start_time
-        self.input_data = input_data
+        self.request_text = request_text
         self.number_of_judges = number_of_judges
         self.contestant_list = contestant_list if contestant_list is not None else []
         self.contest_result_list = contest_result_list if contest_result_list is not None else []
@@ -228,8 +228,6 @@ class TourneyResult(TourneyResultInterface):
 
     def to_dict(self):
         result = copy.deepcopy(vars(self))
-        if "input_data" in result and "contestant_list" in result["input_data"]:
-            del result["input_data"]["contestant_list"] # confusing to have 2 contestant lists
         result["start_time"] = result["start_time"].isoformat() if result["start_time"] is not None else None
         result["contestant_list"] = [contestant.to_dict() for contestant in result["contestant_list"]]
         result["contest_result_list"] = [contest_result.to_dict() for contest_result in result["contest_result_list"]]
@@ -261,7 +259,7 @@ class StepTraceData:
     def __init__(self, trace_id, trace_group_id, variation_of_trace_id, step_id, step_index,
                  step_name, step_type, root_step_id, root_step_name, parent_step_id, parent_step_name, llm_model_info, input_dict,
                  start_time=None, end_time=None, output_dict=None, output_format=LLMONPY_OUTPUT_FORMAT_JSON,
-                 status_code=STEP_STATUS_NO_STATUS, error_list=None, cost=0.0):
+                 status_code=STEP_STATUS_NO_STATUS, error_list=None, cost=0.0, prompt_text=None):
         self.trace_id = trace_id
         self.trace_group_id = trace_group_id
         self.variation_of_trace_id = variation_of_trace_id
@@ -282,6 +280,13 @@ class StepTraceData:
         self.status_code = status_code
         self.error_list = error_list
         self.cost = cost
+        self.prompt_text = prompt_text
+
+    def set_prompt_text(self, prompt_text):
+        self.prompt_text = prompt_text
+
+    def get_prompt_text(self):
+        return self.prompt_text
 
     def to_dict(self):
         result = copy.copy(vars(self))
@@ -398,6 +403,7 @@ class TraceLogRecorder (TraceLogRecorderInterface):
         self.trace_log_service.record_event(event)
 
     def log_prompt_response(self, prompt_text, response_text):
+        self.trace_data.set_prompt_text(prompt_text)
         event = LLMonPyLogPromptResponse.from_prompt_response(self.trace_data.trace_id, self.trace_data.step_id,
                                                               prompt_text, response_text)
         self.trace_log_service.record_event(event)
@@ -434,10 +440,10 @@ class TraceLogRecorder (TraceLogRecorderInterface):
             if self.parent_recorder is not None:
                 self.parent_recorder.record_cost(cost)
 
-    def create_tourney_result(self, number_of_judges, judged_step_name) -> TourneyResult:
+    def create_tourney_result(self, request_text, number_of_judges, judged_step_name) -> TourneyResult:
         tourney_result_id = str(uuid.uuid4())
         result = TourneyResult(tourney_result_id, self.trace_data.step_id, self.trace_data.trace_id,
-                               judged_step_name, self.trace_data.start_time, self.trace_data.input_dict, number_of_judges)
+                               judged_step_name, self.trace_data.start_time, request_text, number_of_judges)
         return result
 
     def record_tourney_result(self, contestant_list: [LLMonPyStepOutput], tourney_result):

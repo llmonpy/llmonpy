@@ -147,6 +147,13 @@ class LLMonPyPromptRunner(LLMonPyStep):
                     continue
         return result
 
+    @staticmethod
+    def render_prompt(prompt: LLMonPyPrompt):
+        prompt_dict = prompt.to_dict()
+        template = Template(prompt.get_prompt_text())
+        prompt_text = template.render(prompt_dict)
+        return prompt_text
+
 
 def create_prompt_steps(parent_recorder: TraceLogRecorderInterface, prompt: LLMonPyPrompt, model_info_list: [LlmModelInfo]):
     result = []
