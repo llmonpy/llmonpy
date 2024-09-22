@@ -4,7 +4,7 @@ from llmon_pypeline import LLMonPypeline
 from llmonpy.llmonpy_prompt import LLMonPyPrompt
 from llmonpy.llmonpy_step import LLMONPY_OUTPUT_FORMAT_JSON, LLMonPyStepOutput
 from llmonpy.llmonpy_tournament import TournamentJudgePrompt
-from llmonpy_gar import GenerateAggregateRankStep
+from llmonpy_gar import GenerateAggregateRankStep, GenerateAggregateRankCycleStep
 
 
 class ValidationChecklistItem:
@@ -188,8 +188,8 @@ class GenerateValidationChecklist(LLMonPypeline):
     def execute_step(self, recorder):
         generator_prompt = GenerateValidationChecklistPrompt(self.request_to_validate)
         judgement_prompt = GenerateValidationChecklistPrompt.JudgePrompt(generator_prompt)
-        gar = GenerateAggregateRankStep(generator_prompt, self.generate_info_list, self.aggregate_info_list, 1,
-                                          judgement_prompt, self.judge_client_info_list).create_step(recorder)
+        gar = GenerateAggregateRankCycleStep(generator_prompt, self.generate_info_list, self.aggregate_info_list, 1,
+                                          judgement_prompt, self.judge_client_info_list, 5).create_step(recorder)
         gar.record_step()
         ordered_response_list = gar.get_step_output().ordered_response_list
         validation_checklist = ValidationChecklist(ordered_response_list[0].step_output.checklist)
