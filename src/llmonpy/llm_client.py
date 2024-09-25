@@ -57,7 +57,7 @@ TOMBU_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_TH
 AI21_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 GROQ_THREAD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=DEFAULT_THREAD_POOL_SIZE)
 MISTRAL_RATE_LIMITER = BucketRateLimiter(180, "MISTRAL")
-FIREWORKS_RATE_LIMITER = BucketRateLimiter(480, "FIREWORKS")
+FIREWORKS_RATE_LIMITER = BucketRateLimiter(300, "FIREWORKS")
 TOMBU_RATE_LIMITER = BucketRateLimiter(1200, "TOMBU_FIREWORKS")
 AI21_RATE_LIMITER = BucketRateLimiter(60,  "AI21")
 
@@ -846,8 +846,10 @@ ANTHROPIC_SONNET = AnthropicModel("claude-3-5-sonnet-20240620", 180000, BucketRa
 ANTHROPIC_HAIKU = AnthropicModel("claude-3-haiku-20240307", 180000, BucketRateLimiter(240), ANTHROPIC_THREAD_POOL,
                                  0.25, 1.25)
 # DEEPSEEK = DeepseekModel("deepseek-chat", 24000, RateLlmiter(20, MINUTE_TIME_WINDOW), DEEPSEEK_EXECUTOR)
-GEMINI_FLASH = GeminiModel("gemini-1.5-flash", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 0.075, .35)
-GEMINI_PRO = GeminiModel("gemini-1.5-pro", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 3.5, 7.0)
+OLD_GEMINI_FLASH = GeminiModel("gemini-1.5-flash", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 0.075, .35)
+GEMINI_FLASH = GeminiModel("gemini-1.5-flash-002", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 0.075, .35)
+GEMINI_FLASH_8B = GeminiModel("gemini-1.5-flash-8b-exp-0924", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 0.075, .35)
+GEMINI_PRO = GeminiModel("gemini-1.5-pro-002", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 1.25, 2.50)
 FIREWORKS_LLAMA3_1_8B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-8b-instruct", 120000,
                                          FIREWORKS_RATE_LIMITER, FIREWORKS_THREAD_POOL, 0.20, 0.20)
 FIREWORKS_LLAMA3_1_405B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-405b-instruct", 120000,
