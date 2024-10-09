@@ -367,7 +367,6 @@ class LlmClient(RateLimitedService):
         result = True
         print("Testing if blocked")
         try:
-            self.start() # this should init API.
             response = self.do_prompt("Hello? Respond with 'World'","You are a helpful assistant", False,
                                       temp=0.0, max_output=10)
             result = response.response_text is None
@@ -848,8 +847,12 @@ ANTHROPIC_HAIKU = AnthropicModel("claude-3-haiku-20240307", 180000, BucketRateLi
 # DEEPSEEK = DeepseekModel("deepseek-chat", 24000, RateLlmiter(20, MINUTE_TIME_WINDOW), DEEPSEEK_EXECUTOR)
 OLD_GEMINI_FLASH = GeminiModel("gemini-1.5-flash", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 0.075, .35)
 GEMINI_FLASH = GeminiModel("gemini-1.5-flash-002", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 0.075, .35)
-GEMINI_FLASH_8B = GeminiModel("gemini-1.5-flash-8b-exp-0924", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 0.075, .35)
+GEMINI_FLASH_8B = GeminiModel("gemini-1.5-flash-8b", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 0.075, .35)
 GEMINI_PRO = GeminiModel("gemini-1.5-pro-002", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 1.25, 2.50)
+FIREWORKS_LLAMA3_2_1B = FireworksAIModel("accounts/fireworks/models/llama-v3p2-1b-instruct", 120000,
+                                         FIREWORKS_RATE_LIMITER, FIREWORKS_THREAD_POOL, 0.10, 0.20)
+FIREWORKS_LLAMA3_2_3B = FireworksAIModel("accounts/fireworks/models/llama-v3p2-3b-instruct", 120000,
+                                         FIREWORKS_RATE_LIMITER, FIREWORKS_THREAD_POOL, 0.10, 0.20)
 FIREWORKS_LLAMA3_1_8B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-8b-instruct", 120000,
                                          FIREWORKS_RATE_LIMITER, FIREWORKS_THREAD_POOL, 0.20, 0.20)
 FIREWORKS_LLAMA3_1_405B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-405b-instruct", 120000,
@@ -898,7 +901,7 @@ def init_llm_clients(data_directory="data"):
     status_service.start()
     add_service_to_stop(status_service)
     RateLlmiterMonitor.get_instance().add_listener(status_service)
-    RateLlmiterMonitor.get_instance().start(log_directory=log_directory)
+    RateLlmiterMonitor.get_instance().start()
     add_service_to_stop(RateLlmiterMonitor.get_instance())
     return clients_with_keys
 
