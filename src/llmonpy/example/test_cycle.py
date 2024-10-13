@@ -69,7 +69,7 @@ def write_training_data(trace_id: str):
         tourney_qbawa = tourney.generate_qbawa()
         qbawa_list.extend(tourney_qbawa)
     qbawa_list = [qbawa.to_dict() for qbawa in qbawa_list]
-    file_path = "training_data.json"
+    file_path = "data/training_data.json"
     with open(file_path, "w") as file:
         json.dump(qbawa_list, file, indent=4)
 
