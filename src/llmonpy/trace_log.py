@@ -196,6 +196,10 @@ class QBaWa:
         result = copy.copy(vars(self))
         return result
 
+    @staticmethod
+    def from_dict(dictionary):
+        return QBaWa(**dictionary)
+
 
 class ContestResult:
     def __init__(self, step_id,contestant_one_output_id, contestant_two_output_id, winner_output_id, dissenting_judges:int = 0):
@@ -657,6 +661,11 @@ class TraceLogService:
     def get_tourney_results_for_step_name(self, step_name: str) -> [TourneyResult]:
         result = self.llmonpy_trace_store.get_tourney_results_for_step_name(step_name)
         result.sort(key=lambda x: x.start_time, reverse=True)
+        return result
+
+    def get_tourney_results_for_trace(self, trace_id: str) -> TourneyResult:
+        result = self.llmonpy_trace_store.get_tourney_results_for_trace(trace_id)
+        result.sort(key=lambda x: x.start_time)
         return result
 
     @staticmethod

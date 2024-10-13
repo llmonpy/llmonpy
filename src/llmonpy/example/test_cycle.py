@@ -13,6 +13,7 @@
 #   COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 #   OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 import copy
+import json
 import os
 import uuid
 import time
@@ -22,11 +23,11 @@ from llmonpy.llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, A
     MISTRAL_8X22B, ANTHROPIC_OPUS, MISTRAL_SMALL, filter_clients_that_didnt_start, GPT4omini, FIREWORKS_LLAMA3_1_8B, \
     FIREWORKS_MYTHOMAXL2_13B, TOMBU_LLAMA3_1_8B, TOMBU_DOLPHIN_QWEN2_72B, GROQ_LLAMA3_1_70B
 from llmonpy.llmon_pypeline import LLMonPypeline
-from llmonpy.llmonpy_execute import run_step
 from llmonpy.llmonpy_step import TraceLogRecorderInterface, make_model_list, ModelTemp, LLMonPyStepOutput
 from llmonpy.llmonpy_tournament import AdaptiveICLCycle
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
 from llmonpy.example.test_tourney import NameIterativeRefinementTournamentPrompt
+from llmonpy.trace_log import trace_log_service
 
 
 class GenerateNameCycle(LLMonPypeline):
@@ -52,7 +53,7 @@ class GenerateNameCycle(LLMonPypeline):
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt)
         cycle = AdaptiveICLCycle(generator_prompt, self.aggregate_info_list, judgement_prompt,
-                                 self.judge_client_info_list, 5, 4, self.first_round_info_list).create_step(recorder)
+                                 self.judge_client_info_list, 5, 2, self.first_round_info_list).create_step(recorder)
         cycle.record_step()
         ordered_response_list = cycle.get_step_output().ordered_response_list
         for result in ordered_response_list:
@@ -61,6 +62,17 @@ class GenerateNameCycle(LLMonPypeline):
         return result
 
 
+def write_training_data(trace_id: str):
+    tourney_result_list = trace_log_service().get_tourney_results_for_trace(trace_id)
+    qbawa_list = []
+    for tourney in tourney_result_list:
+        tourney_qbawa = tourney.generate_qbawa()
+        qbawa_list.extend(tourney_qbawa)
+    qbawa_list = [qbawa.to_dict() for qbawa in qbawa_list]
+    file_path = "training_data.json"
+    with open(file_path, "w") as file:
+        json.dump(qbawa_list, file, indent=4)
+
 if __name__ == "__main__":
     llmonpy_start()
     print("Running Test Cycle")
@@ -68,6 +80,8 @@ if __name__ == "__main__":
         step = GenerateNameCycle().create_step(None)
         step.record_step()
         result = step.get_step_output()
+        trace_id = step.get_recorder().get_trace_id()
+        write_training_data(trace_id)
         print(result.to_json())
     except Exception as e:
         print(str(e))
