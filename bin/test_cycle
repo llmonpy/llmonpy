@@ -1,0 +1,9 @@
+#!/bin/bash
+
+export PYTHONPATH=src/:$PYTHONPATH
+
+
+# Construct the command with arguments
+cmd="python3 src/llmonpy/example/test_cycle.py"
+
+eval $cmd

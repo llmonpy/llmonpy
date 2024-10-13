@@ -307,3 +307,4 @@ class SqliteLLMonPyTraceStore:
         step_name_condition = QueryCondition(STEP_NAME_COLUMN_NAME, "=", step_name)
         tourney_list = self.tourney_result_table.select_rows([step_name_condition], self.tourney_result_factory)
         return tourney_list
+

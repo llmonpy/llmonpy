@@ -1,0 +1,12 @@
+I have created a new technique for improving the quality of responses from a language model. The technique works as follows:
+
+1. A request is given to an LLM and the LLM responds.
+2. A new request is given to the LLM that lists a list of better and worse responses to the original request and the
+LLM is asked to improve on its original response.
+
+Could you please provide me with a suggestion for a name for this technique? Your reply should be in this format:
+
+<name> "suggested name" </name>
+
+Do not include any other information in your response. There should be no text before the <name> tag and no text after
+the </name> tag.
