@@ -25,8 +25,83 @@ from llmonpy.trace_log import LlmModelInfo, trace_log_service
 
 DEFAULT_OUTPUT_DICT_KEY = "response_string"
 
+class LLMonPyPromptInterface:
+    def __init__(self):
+        pass
 
-class LLMonPyPrompt:
+    def get_prompt_text(self):
+        raise NotImplementedError
+
+    def get_json_output(self):
+        raise NotImplementedError
+
+    def get_output_format(self):
+        raise NotImplementedError
+
+    def get_step_name(self):
+        raise NotImplementedError
+
+    def get_short_step_name(self):
+        raise NotImplementedError
+
+    def to_dict(self):
+        result = copy.deepcopy(vars(self))
+        return result
+
+    def from_dict(self, dict):
+        pass
+
+    def output_from_string(self, string):
+        output_dict = { DEFAULT_OUTPUT_DICT_KEY: string }
+        result = self.output_from_dict(output_dict)
+        return result
+
+    def output_from_dict(self, output_dict):
+        raise NotImplementedError
+
+
+class LLMonPySimplePrompt(LLMonPyPromptInterface):
+    def __init__(self, name, prompt_text, output_format = LLMONPY_OUTPUT_FORMAT_TEXT):
+        self.name = name
+        self.prompt_text = prompt_text
+        self.output_format = output_format
+
+    def get_prompt_text(self):
+        return self.prompt_text
+
+    def get_json_output(self):
+        return self.output_format == LLMONPY_OUTPUT_FORMAT_JSON
+
+    def get_output_format(self):
+        return self.output_format
+
+    def get_step_name(self):
+        return self.name
+
+    def get_short_step_name(self):
+        result = self.get_step_name()
+        return result
+
+    def to_dict(self):
+        result = copy.deepcopy(vars(self))
+        return result
+
+    def from_dict(self, dict):
+        pass
+
+    def output_from_dict(self, output_dict):
+        result = TextLLMonPyStepOutput(output_dict[DEFAULT_OUTPUT_DICT_KEY])
+        return result
+
+    @staticmethod
+    def from_file(file_path, name):
+        with open(file_path, "r") as file:
+            prompt_text = file.read()
+            result = LLMonPySimplePrompt(name, prompt_text)
+        return result
+
+
+class LLMonPyPrompt (LLMonPyPromptInterface):
     class LLMonPyOutput(LLMonPyStepOutput):
         def __init__(self):
             pass
@@ -74,7 +149,7 @@ class LLMonPyPrompt:
         return result
 
     def output_from_dict(self, output_dict):
-        result = self.LLMonPyOutput.from_dict(output_dict)
+        result = TextLLMonPyStepOutput.from_dict(output_dict)
         return result
 
 
@@ -85,7 +160,7 @@ class JudgePrompt(LLMonPyPrompt):
 
 # make different evaluators if they handle errors different
 class LLMonPyPromptRunner(LLMonPyStep):
-    def __init__(self, parent_recorder: TraceLogRecorderInterface, prompt: LLMonPyPrompt, llm_model_info: LlmModelInfo):
+    def __init__(self, parent_recorder: TraceLogRecorderInterface, prompt: LLMonPyPromptInterface, llm_model_info: LlmModelInfo):
         super().__init__()
         self.llm_model_info = llm_model_info
         self.prompt = copy.deepcopy(prompt)

@@ -135,6 +135,14 @@ class LLMonPyStepOutput:
     def from_dict(dict):
         pass
 
+class TextLLMonPyStepOutput(LLMonPyStepOutput):
+    def __init__(self, response_string):
+        self.response_string = response_string
+
+    @staticmethod
+    def from_dict(dict):
+        result = TextLLMonPyStepOutput(dict["response_string"])
+        return result
 
 class DictLLMonPyStepOutput(LLMonPyStepOutput):
     def __init__(self, output_dict):
