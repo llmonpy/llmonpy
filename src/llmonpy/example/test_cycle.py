@@ -18,10 +18,11 @@ import os
 import uuid
 import time
 
+from llm_client import FIREWORKS_LLAMA3_1_405B, MINISTRAL_3B
 from llmonpy.llm_client import GPT4o, MISTRAL_LARGE, GEMINI_PRO, GEMINI_FLASH, ANTHROPIC_SONNET, MISTRAL_7B, \
     ANTHROPIC_HAIKU, \
     MISTRAL_8X22B, ANTHROPIC_OPUS, MISTRAL_SMALL, filter_clients_that_didnt_start, GPT4omini, FIREWORKS_LLAMA3_1_8B, \
-    FIREWORKS_MYTHOMAXL2_13B, TOMBU_LLAMA3_1_8B, TOMBU_DOLPHIN_QWEN2_72B, GROQ_LLAMA3_1_70B
+    FIREWORKS_MYTHOMAXL2_13B, TOMBU_LLAMA3_1_8B, TOMBU_DOLPHIN_QWEN2_72B, GROQ_LLAMA3_1_70B, GEMINI_FLASH_8B
 from llmonpy.llmon_pypeline import LLMonPypeline
 from llmonpy.llmonpy_step import TraceLogRecorderInterface, make_model_list, ModelTemp, LLMonPyStepOutput
 from llmonpy.llmonpy_tournament import AdaptiveICLCycle
@@ -42,9 +43,12 @@ class GenerateNameCycle(LLMonPypeline):
             return result
 
     def __init__(self, first_round_info_list=None, aggregate_info_list=None, judge_client_info_list=None):
-        self.first_round_info_list = first_round_info_list if first_round_info_list is not None else make_model_list(ModelTemp([ANTHROPIC_SONNET, GEMINI_PRO, GPT4o, MISTRAL_LARGE], [0.0, 0.75]))
-        self.aggregate_info_list = aggregate_info_list if aggregate_info_list is not None else make_model_list(ModelTemp([GPT4omini, GPT4o, FIREWORKS_LLAMA3_1_8B, ANTHROPIC_HAIKU, MISTRAL_SMALL], [0.0, 0.25, 0.50, 0.75]))
-        self.judge_client_info_list = judge_client_info_list if judge_client_info_list is not None else make_model_list(ModelTemp([FIREWORKS_LLAMA3_1_8B, GPT4o, MISTRAL_7B, GPT4omini, ANTHROPIC_HAIKU],0.0))
+        self.first_round_info_list = first_round_info_list if first_round_info_list is not None \
+            else make_model_list(ModelTemp([ANTHROPIC_SONNET, GEMINI_PRO, GPT4o, MISTRAL_LARGE, FIREWORKS_LLAMA3_1_405B], [0.0, 0.75]))
+        self.aggregate_info_list = aggregate_info_list if aggregate_info_list is not None \
+            else make_model_list(ModelTemp([GPT4omini, GEMINI_FLASH, FIREWORKS_LLAMA3_1_8B, ANTHROPIC_HAIKU], [0.0, 0.25, 0.50, 0.75]))
+        self.judge_client_info_list = judge_client_info_list if judge_client_info_list is not None \
+            else make_model_list(ModelTemp([GEMINI_FLASH, GEMINI_FLASH_8B, MISTRAL_7B, GPT4omini, ANTHROPIC_HAIKU],0.0))
 
     def get_input_dict(self, recorder: TraceLogRecorderInterface):
         return {}
@@ -53,7 +57,7 @@ class GenerateNameCycle(LLMonPypeline):
         generator_prompt = NameIterativeRefinementTournamentPrompt()
         judgement_prompt = NameIterativeRefinementTournamentPrompt.JudgePrompt(generator_prompt)
         cycle = AdaptiveICLCycle(generator_prompt, self.aggregate_info_list, judgement_prompt,
-                                 self.judge_client_info_list, 5, 2, self.first_round_info_list).create_step(recorder)
+                                 self.judge_client_info_list, 5, 4, self.first_round_info_list).create_step(recorder)
         cycle.record_step()
         ordered_response_list = cycle.get_step_output().ordered_response_list
         for result in ordered_response_list:
