@@ -699,7 +699,7 @@ class FireworksAIModel(LlmClient):
                 completion = self.client.chat.completions.create(
 
                     model=self.model_name,
-                    response_format={"type": response_format},
+                    # response_format={"type": response_format},
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": prompt_text}
@@ -849,9 +849,10 @@ ANTHROPIC_HAIKU = AnthropicModel("claude-3-haiku-20240307", 180000, BucketRateLi
                                  0.25, 1.25)
 # DEEPSEEK = DeepseekModel("deepseek-chat", 24000, RateLlmiter(20, MINUTE_TIME_WINDOW), DEEPSEEK_EXECUTOR)
 OLD_GEMINI_FLASH = GeminiModel("gemini-1.5-flash", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 0.075, .35)
+GEMINI_FLASH_2 = GeminiModel("gemini-2.0-flash-exp", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 0.075, .35)
 GEMINI_FLASH = GeminiModel("gemini-1.5-flash-002", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 0.075, .35)
 GEMINI_FLASH_8B = GeminiModel("gemini-1.5-flash-8b", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 0.0375, .15)
-GEMINI_PRO = GeminiModel("gemini-1.5-pro-002", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 1.25, 2.50)
+GEMINI_PRO = GeminiModel("gemini-1.5-pro", 120000, BucketRateLimiter(240), GEMINI_THREAD_POOL, 1.25, 2.50)
 FIREWORKS_LLAMA3_2_1B = FireworksAIModel("accounts/fireworks/models/llama-v3p2-1b-instruct", 120000,
                                          FIREWORKS_RATE_LIMITER, FIREWORKS_THREAD_POOL, 0.10, 0.20)
 FIREWORKS_LLAMA3_2_3B = FireworksAIModel("accounts/fireworks/models/llama-v3p2-3b-instruct", 120000,
@@ -867,6 +868,8 @@ FIREWORKS_GEMMA2_9B = FireworksAIModel("accounts/fireworks/models/gemma2-9b-it",
 FIREWORKS_MYTHOMAXL2_13B = FireworksAIModel("accounts/fireworks/models/mythomax-l2-13b", 4000, FIREWORKS_RATE_LIMITER,
                                             FIREWORKS_THREAD_POOL, 0.20, 0.20)
 FIREWORKS_QWEN2_72B = FireworksAIModel("accounts/fireworks/models/qwen2p5-72b-instruct", 32000, FIREWORKS_RATE_LIMITER,
+                                       FIREWORKS_THREAD_POOL, 0.90, 0.90)
+FIREWORKS_DEEPSEEK_V3 = FireworksAIModel("accounts/fireworks/models/deepseek-v3", 32000, FIREWORKS_RATE_LIMITER,
                                        FIREWORKS_THREAD_POOL, 0.90, 0.90)
 TOMBU_LLAMA3_1_8B = FireworksAIModel("accounts/fireworks/models/llama-v3p1-8b-instruct#accounts/tombu-8c8576/deployments/ffdd8605", 120000,
                                          TOMBU_RATE_LIMITER, TOMBU_THREAD_POOL, 0.20, 0.20)
