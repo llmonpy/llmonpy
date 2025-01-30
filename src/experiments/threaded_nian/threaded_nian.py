@@ -5,7 +5,7 @@ from llm_client import GPT4omini, GEMINI_FLASH, ANTHROPIC_SONNET, ANTHROPIC_HAIK
     MISTRAL_LARGE, MISTRAL_NEMO_12B, FIREWORKS_DEEPSEEK_V3, GEMINI_PRO, GEMINI_FLASH_2
 from llmonpy.system_startup import llmonpy_start, llmonpy_stop
 from llmonpy.llmonpy_prompt import LLMonPySimplePrompt, LLMonPyPromptRunner
-from llmonpy_step import LlmModelInfo
+from llmonpy.llmonpy_step import LlmModelInfo
 
 class ThreadedNianTest:
     def __init__(self, model_name):
